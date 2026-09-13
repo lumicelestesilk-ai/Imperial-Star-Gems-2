@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.pem
+.env
+.env*.local
+next-env.d.ts
+*.tsbuildinfo
+
+# Raw PNG source frames are an intermediate build input (~165 MB), never shipped.
+# Keep them out of the repo; `npm run sequence:convert` regenerates public/sequence.
+assets/sequence/raw/

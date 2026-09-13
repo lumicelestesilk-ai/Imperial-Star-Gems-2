@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-09-13T07:17:28.654Z",
+  "source": 689,
+  "tiers": {
+    "desktop": {
+      "frames": 689,
+      "width": 1600
+    },
+    "mobile": {
+      "frames": 230,
+      "width": 900
+    },
+    "spin": {
+      "frames": 97,
+      "width": 640
+    }
+  }
+}

@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/*
+  Imperial Star Gems — white-luxury design system.
+
+  Tailwind's stock palette is cleared wholesale below (`--color-*: initial`) so
+  that a stray `text-gray-500` fails loudly instead of quietly introducing a
+  colour that is not part of the brand.
+*/
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+
+  --color-porcelain: #fafafa;
+  --color-panel: #efedea;
+  --color-ink: #17181b;
+  --color-ink-muted: #6e6d69;
+  --color-hairline: #d8d6d1;
+  --color-metal: #b9b6ae;
+  --color-facet: #dceaf0;
+
+  /*
+    Measured contrast against the two grounds (WCAG 2.1, normal text needs 4.5):
+
+      ink        on porcelain  17.1 : 1   pass
+      ink        on panel      15.2 : 1   pass
+      ink-muted  on porcelain   4.96: 1   pass
+      ink-muted  on panel       4.43: 1   FAILS — use ink-muted-panel instead
+      ink-muted-panel on panel  5.23: 1   pass
+      metal      on porcelain   1.94: 1   never use for text
+
+    --metal is a stroke and rule colour only: hairlines, icon outlines, small
+    decorative marks. Any label a user has to read uses an ink token.
+  */
+  --color-ink-muted-panel: #63625e;
+
+  --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-dm-sans), "Helvetica Neue", Arial, sans-serif;
+
+  /* Radii are scaled by element size rather than applied uniformly. */
+  --radius-chip: 10px;
+  --radius-input: 12px;
+  --radius-card: 22px;
+  --radius-panel: 36px;
+
+  --ease-quiet: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-porcelain);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--color-facet);
+    color: var(--color-ink);
+  }
+
+  /* Visible focus on a near-white ground needs an ink ring, not a pale one. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* Only elements that opt in get a focus ring on mouse click. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  /*
+    Wireframe glyph.
+
+    At rest: hairline outline, no fill. On hover, focus, or when the shape is the
+    active filter, the outline fills with the cool glint and the facet lines draw
+    themselves in from the girdle inwards.
+
+    Facet paths carry pathLength="1", so one dash length covers any path
+    regardless of its real length and the stagger stays even across shapes.
+  */
+  .glyph-outline {
+    fill: transparent;
+    stroke: var(--color-metal);
+    transition:
+      fill 420ms var(--ease-quiet),
+      stroke 320ms var(--ease-quiet);
+  }
+
+  .glyph-facet {
+    fill: none;
+    stroke: var(--color-metal);
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+    transition:
+      stroke-dashoffset 520ms var(--ease-quiet),
+      opacity 200ms linear,
+      stroke 320ms var(--ease-quiet);
+  }
+
+  .glyph-is-lit .glyph-outline {
+    fill: var(--color-facet);
+    stroke: var(--color-ink);
+  }
+
+  .glyph-is-lit .glyph-facet {
+    stroke: var(--color-ink);
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  /*
+    A glyph marked `.glyph-auto` lights when its containing `.group` is hovered
+    or holds focus, so a card lights as one object rather than needing hover
+    state tracked in React.
+  */
+  .group:hover .glyph-auto .glyph-outline,
+  .group:focus-within .glyph-auto .glyph-outline {
+    fill: var(--color-facet);
+    stroke: var(--color-ink);
+  }
+
+  .group:hover .glyph-auto .glyph-facet,
+  .group:focus-within .glyph-auto .glyph-facet {
+    stroke: var(--color-ink);
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  /* Static wireframe: outline only, facets always drawn, no interaction. */
+  .glyph-static .glyph-facet {
+    stroke-dashoffset: 0;
+    opacity: 1;
+    transition: none;
+  }
+
+  .glyph-static .glyph-outline,
+  .glyph-static .glyph-facet {
+    transition: none;
+  }
+}
+
+/* Stage captions cross-fade as the hero sequence moves between stages. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility measure {
+  /* Keeps body copy under the ~80 character line length the brief asks for. */
+  max-width: 62ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

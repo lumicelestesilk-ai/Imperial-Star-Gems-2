@@ -1,0 +1,135 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ShapeGlyph } from "./shape-glyph";
+import { GLYPHS } from "@/lib/glyphs";
+
+const NAV = [
+  { href: "/natural-diamonds", label: "Natural" },
+  { href: "/lab-grown-diamonds", label: "Lab-Grown" },
+  { href: "/shapes", label: "Shapes" },
+  { href: "/craftsmanship", label: "Craftsmanship" },
+  { href: "/contact", label: "Contact" },
+];
+
+export function SiteHeader() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // A route change should always leave the menu closed.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-hairline bg-porcelain/85 backdrop-blur-md">
+      <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-6 px-5 sm:px-8">
+        <Link
+          href="/"
+          className="group flex items-center gap-3"
+          aria-label="Imperial Star Gems, home"
+        >
+          {/* The wireframe radiant doubles as the brand's technical mark. */}
+          <ShapeGlyph
+            geometry={GLYPHS.radiant}
+            frozen
+            className="h-7 w-7 shrink-0 [&_.glyph-facet]:stroke-hairline [&_.glyph-outline]:stroke-ink"
+          />
+          <span className="font-display text-[21px] leading-none tracking-[-0.01em]">
+            Imperial Star Gems
+          </span>
+        </Link>
+
+        <nav className="hidden items-center gap-8 lg:flex" aria-label="Primary">
+          {NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`border-b py-1 text-[15px] transition-colors duration-200 ${
+                  active
+                    ? "border-ink text-ink"
+                    : "border-transparent text-ink-muted hover:border-hairline hover:text-ink"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+          <Link
+            href="/contact"
+            className="rounded-full bg-ink px-6 py-2.5 text-[15px] text-white transition-opacity duration-200 hover:opacity-85"
+          >
+            Enquire
+          </Link>
+        </nav>
+
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+          className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-hairline lg:hidden"
+        >
+          <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
+          <span aria-hidden className="flex flex-col gap-[5px]">
+            <span
+              className={`block h-px w-5 bg-ink transition-transform duration-300 ${
+                open ? "translate-y-[6px] rotate-45" : ""
+              }`}
+            />
+            <span
+              className={`block h-px w-5 bg-ink transition-opacity duration-200 ${
+                open ? "opacity-0" : ""
+              }`}
+            />
+            <span
+              className={`block h-px w-5 bg-ink transition-transform duration-300 ${
+                open ? "-translate-y-[6px] -rotate-45" : ""
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            id="mobile-nav"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.32, ease: [0.22, 0.61, 0.36, 1] }}
+            className="overflow-hidden border-t border-hairline bg-porcelain lg:hidden"
+          >
+            <nav className="flex flex-col px-5 py-3 sm:px-8" aria-label="Primary">
+              {NAV.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="border-b border-hairline py-4 font-display text-2xl last:border-b-0"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </header>
+  );
+}
