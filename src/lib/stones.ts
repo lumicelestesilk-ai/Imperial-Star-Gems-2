@@ -1,4 +1,5 @@
 import { SHAPES, type Shape, type ShapeSlug } from "./shapes";
+import { REAL_ROUND_LAB_STONES } from "./real-stones";
 
 export type Origin = "natural" | "lab";
 
@@ -27,7 +28,8 @@ export type Stone = {
 
 export const COLOR_GRADES = ["D", "E", "F", "G", "H", "I", "J"] as const;
 export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2"] as const;
-export const CUT_GRADES = ["Excellent", "Very Good", "Good"] as const;
+/** "Ideal" is a round-brilliant-only grade, real stock only — the generator below never assigns it. */
+export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Ideal"] as const;
 export const LABS = ["GIA", "IGI"] as const;
 export const FLUORESCENCE = ["None", "Faint", "Medium"] as const;
 
@@ -109,9 +111,9 @@ function buildStone(shape: Shape, origin: Origin, seed: number): Stone {
     CLARITY_GRADES,
     origin === "lab" ? [4, 8, 13, 13, 12, 10, 5, 2] : [1, 4, 8, 10, 13, 13, 9, 5],
   );
-  const cut = weighted(rand, CUT_GRADES, [14, 7, 2]);
-  const polish = weighted(rand, CUT_GRADES, [16, 6, 1]);
-  const symmetry = weighted(rand, CUT_GRADES, [15, 7, 1]);
+  const cut = weighted(rand, CUT_GRADES, [14, 7, 2, 0]);
+  const polish = weighted(rand, CUT_GRADES, [16, 6, 1, 0]);
+  const symmetry = weighted(rand, CUT_GRADES, [15, 7, 1, 0]);
   const fluorescence = weighted(
     rand,
     FLUORESCENCE,
@@ -163,7 +165,15 @@ function buildCatalog(origin: Origin, count: number, seedBase: number): Stone[] 
 }
 
 export const NATURAL_STONES: Stone[] = buildCatalog("natural", 66, 20260913);
-export const LAB_STONES: Stone[] = buildCatalog("lab", 55, 77010203);
+
+/**
+ * Round is real stock (`real-stones.ts`), not generated — the generated round
+ * entries are dropped from the lab catalogue so they don't sit alongside it.
+ */
+export const LAB_STONES: Stone[] = [
+  ...buildCatalog("lab", 55, 77010203).filter((s) => s.shape !== "round"),
+  ...REAL_ROUND_LAB_STONES,
+];
 
 export const ALL_STONES: Stone[] = [...NATURAL_STONES, ...LAB_STONES];
 
