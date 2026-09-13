@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { DiamondRotation } from "./diamond-rotation";
+import { StoneModel } from "./stone-model";
 import { EnquiryForm } from "./enquiry-form";
 import type { Stone } from "@/lib/stones";
 import { enquiryBody, mailtoHref, stoneDescriptor, whatsappHref } from "@/lib/contact";
@@ -125,7 +125,8 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
               </p>
 
               <div className="mt-6">
-                <DiamondRotation
+                <StoneModel
+                  stone={stone}
                   label={`the ${stone.shapeName} ${stone.carat.toFixed(2)} carat diamond`}
                 />
               </div>
