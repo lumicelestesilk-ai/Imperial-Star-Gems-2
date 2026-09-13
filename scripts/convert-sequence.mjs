@@ -1,28 +1,34 @@
 /**
  * Frame-sequence build step.
  *
- * Reads the raw PNG turntable (rough crystal -> polished, graded stone) out of
- * assets/sequence/raw and writes the tiers the site actually ships:
+ * Builds the two independent sequences the site ships:
  *
- *   public/sequence/desktop/  1600px, every valid frame      (hero, wide screens)
- *   public/sequence/mobile/    900px, every 3rd frame        (hero, small screens)
- *   public/sequence/spin/      640px, polished tail only     (drag-to-rotate viewer)
- *   public/sequence/poster.webp  final frame, static hero for prefers-reduced-motion
+ *   public/sequence/scroll/         00001.webp – 00700.webp   1600px  scroll-scrubbed hero
+ *   public/sequence/scroll-mobile/  every 3rd scroll frame      900px  hero on narrow screens
+ *   public/sequence/rotate/         00001.webp – 00NNN.webp     720px  looping 360° turn
  *
- * The raw set has gaps: four indices were never published and four more are
- * zero-byte. Both are dropped and the survivors are renumbered contiguously from
- * 00000, so the player can map scroll progress straight onto an index with no
- * lookup table and no missing-image requests.
+ * Inputs:
  *
- * Writes src/data/sequence-manifest.json so the app knows each tier's exact
- * frame count at build time rather than probing for it at runtime.
+ *   assets/sequence/raw-700/  the rough -> polished render, 700 PNGs
+ *                             (_00000.png – _00699.png, or 00000.png – 00699.png)
+ *   assets/sequence/raw-360/  OPTIONAL. The dedicated 360° turntable render,
+ *                             expected to be 333 PNGs. When present it is used
+ *                             frame for frame.
  *
- *   node scripts/convert-sequence.mjs [rawDir]
+ * If raw-360 is absent, rotate/ is filled with a stand-in: the finished stone's
+ * turn from the end of the 700-frame render, played forward and then back so the
+ * loop has no jump. The manifest records which one shipped.
+ *
+ * Output is numbered from 00001 in every folder, regardless of how the source
+ * was numbered. Frames that are empty or fail to decode are dropped before
+ * numbering, so there are never gaps; the script reports anything it dropped.
+ *
+ *   node scripts/convert-sequence.mjs
  */
 
 import { createRequire } from "node:module";
-import fs from "node:fs";
 import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,178 +36,162 @@ const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const RAW_DIR = path.resolve(ROOT, process.argv[2] ?? "assets/sequence/raw");
+const RAW_SCROLL = path.join(ROOT, "assets", "sequence", "raw-700");
+const RAW_ROTATE = path.join(ROOT, "assets", "sequence", "raw-360");
 const OUT_DIR = path.join(ROOT, "public", "sequence");
 const MANIFEST = path.join(ROOT, "src", "data", "sequence-manifest.json");
 
-/** Page background. Frames render on white, so flattening onto the porcelain
- *  ground keeps the canvas seamless and drops the alpha channel's weight. */
+/** Frames render on white; flattening onto the porcelain ground keeps the
+ *  canvas seamless and drops the weight of an alpha channel. */
 const BG = { r: 0xfa, g: 0xfa, b: 0xfa };
 
-const TIERS = [
-  { name: "desktop", width: 1600, step: 1, quality: 76, range: null },
-  { name: "mobile", width: 900, step: 3, quality: 72, range: null },
-  // Tail of the sequence: the finished stone turning. Used by the product
-  // drag-to-rotate preview, which never needs the rough or cutting stages.
-  { name: "spin", width: 640, step: 1, quality: 78, range: [0.86, 1] },
-];
-
-const CONCURRENCY = Math.max(4, Math.min(12, (await import("node:os")).cpus().length));
-
-function pad(n) {
-  return String(n).padStart(5, "0");
-}
+const EXPECTED_SCROLL = 700;
+const EXPECTED_ROTATE = 333;
 
 /**
- * Frames that exist, are non-empty, and decode cleanly, in sequence order.
- *
- * The published set is not uniformly healthy: some entries are zero-byte and
- * others are truncated part-way through the PNG data stream, which only
- * surfaces on decode. Both are dropped here rather than during encoding, so
- * that the renumbering below stays contiguous.
+ * Stand-in rotation range, as 0-based source indices into raw-700. Checked by
+ * eye: the polishing dust has cleared by _00630.png, and from there to the last
+ * frame the finished stone turns from a three-quarter view to face up.
  */
-async function collectSourceFrames() {
-  let entries;
-  try {
-    entries = await fsp.readdir(RAW_DIR);
-  } catch {
-    console.error(
-      `\n  No raw frames at ${RAW_DIR}\n` +
-        `  Download the PNG sequence into that folder first, then re-run.\n`,
-    );
-    process.exit(1);
-  }
+const STANDIN_FROM = 630;
 
-  const candidates = entries
-    .filter((f) => /^\d{5}\.png$/i.test(f))
-    .sort()
-    .map((f) => path.join(RAW_DIR, f));
+/** Folders from earlier builds that are no longer served. */
+const RETIRED = ["desktop", "mobile", "spin", "poster.webp"];
 
-  const empty = [];
-  const corrupt = [];
-  const verdicts = new Array(candidates.length).fill(false);
+const CONCURRENCY = Math.max(4, Math.min(12, os.cpus().length));
 
-  await pool(candidates, async (file, i) => {
-    if ((await fsp.stat(file)).size === 0) {
-      empty.push(path.basename(file));
-      return;
-    }
-    try {
-      // Force a full decode — a header-only read will not catch truncation.
-      await sharp(file).resize({ width: 32 }).raw().toBuffer();
-      verdicts[i] = true;
-    } catch {
-      corrupt.push(path.basename(file));
-    }
-  });
+const pad = (n) => String(n).padStart(5, "0");
 
-  if (empty.length) {
-    console.log(`    dropped ${empty.length} empty: ${empty.join(", ")}`);
-  }
-  if (corrupt.length) {
-    console.log(`    dropped ${corrupt.length} undecodable: ${corrupt.join(", ")}`);
-  }
-  return candidates.filter((_, i) => verdicts[i]);
-}
-
-/** Runs `task` over `items` with a bounded worker pool. */
-async function pool(items, worker) {
+async function pool(items, worker, label) {
   let cursor = 0;
   let done = 0;
-  const total = items.length;
-  const runners = Array.from({ length: Math.min(CONCURRENCY, total) }, async () => {
-    while (cursor < total) {
-      const index = cursor++;
-      await worker(items[index], index);
+  const runners = Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      await worker(items[i], i);
       done++;
-      if (done % 100 === 0 || done === total) {
-        process.stdout.write(`\r    ${done}/${total} frames`);
+      if (label && (done % 100 === 0 || done === items.length)) {
+        process.stdout.write(`\r    ${label} ${done}/${items.length}`);
       }
     }
   });
   await Promise.all(runners);
-  process.stdout.write("\n");
+  if (label) process.stdout.write("\n");
 }
 
-async function buildTier(tier, sources) {
-  const outDir = path.join(OUT_DIR, tier.name);
+/** Sorted, non-empty, fully decodable PNGs in `dir`, or null if the folder is missing. */
+async function usableFrames(dir) {
+  let entries;
+  try {
+    entries = await fsp.readdir(dir);
+  } catch {
+    return null;
+  }
+
+  const candidates = entries
+    .filter((f) => /\d{5}\.png$/i.test(f))
+    .sort((a, b) => Number(a.match(/(\d{5})\.png$/i)[1]) - Number(b.match(/(\d{5})\.png$/i)[1]))
+    .map((f) => path.join(dir, f));
+
+  const ok = new Array(candidates.length).fill(false);
+  const dropped = [];
+  await pool(candidates, async (file, i) => {
+    if ((await fsp.stat(file)).size === 0) {
+      dropped.push(`${path.basename(file)} (empty)`);
+      return;
+    }
+    try {
+      // A full decode — a header read will not catch a truncated PNG.
+      await sharp(file).resize({ width: 32 }).raw().toBuffer();
+      ok[i] = true;
+    } catch {
+      dropped.push(`${path.basename(file)} (undecodable)`);
+    }
+  });
+
+  if (dropped.length) console.log(`    dropped ${dropped.length}: ${dropped.sort().join(", ")}`);
+  return candidates.filter((_, i) => ok[i]);
+}
+
+/** Encodes `sources` in order into `tier`/00001.webp, 00002.webp, … */
+async function writeTier(tier, sources, width, quality) {
+  const outDir = path.join(OUT_DIR, tier);
   await fsp.rm(outDir, { recursive: true, force: true });
   await fsp.mkdir(outDir, { recursive: true });
 
-  let pick = sources;
-  if (tier.range) {
-    const [from, to] = tier.range;
-    pick = sources.slice(Math.floor(sources.length * from), Math.ceil(sources.length * to));
-  }
-  if (tier.step > 1) {
-    pick = pick.filter((_, i) => i % tier.step === 0);
-  }
-
-  console.log(`\n  ${tier.name}: ${pick.length} frames at ${tier.width}px`);
-
-  const jobs = pick.map((src, i) => ({ src, dest: path.join(outDir, `${pad(i)}.webp`) }));
-  await pool(jobs, async ({ src, dest }) => {
-    await sharp(src)
-      .flatten({ background: BG })
-      .resize({ width: tier.width, withoutEnlargement: true })
-      .webp({ quality: tier.quality, effort: 5 })
-      .toFile(dest);
-  });
+  const jobs = sources.map((src, i) => ({ src, dest: path.join(outDir, `${pad(i + 1)}.webp`) }));
+  await pool(
+    jobs,
+    ({ src, dest }) =>
+      sharp(src)
+        .flatten({ background: BG })
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality, effort: 5 })
+        .toFile(dest),
+    tier,
+  );
 
   let bytes = 0;
   for (const { dest } of jobs) bytes += (await fsp.stat(dest)).size;
-  const mb = bytes / 1024 / 1024;
   console.log(
-    `    ${mb.toFixed(1)} MB total, ${(bytes / jobs.length / 1024).toFixed(0)} KB average`,
+    `    ${tier}: ${jobs.length} frames, ${pad(1)}.webp – ${pad(jobs.length)}.webp, ` +
+      `${(bytes / 1024 / 1024).toFixed(1)} MB`,
   );
-
-  return { frames: jobs.length, width: tier.width, bytes };
+  return { frames: jobs.length, width };
 }
 
 async function main() {
-  console.log("\n  validating source frames");
-  const sources = await collectSourceFrames();
-  if (!sources.length) {
-    console.error("  No usable frames found.");
+  console.log(`\n  scroll source: ${path.relative(ROOT, RAW_SCROLL)}`);
+  const scroll = await usableFrames(RAW_SCROLL);
+  if (!scroll?.length) {
+    console.error(`  No frames in ${RAW_SCROLL}. Download the 700-frame render there first.\n`);
     process.exit(1);
   }
-  console.log(`\n  ${sources.length} usable source frames in ${RAW_DIR}`);
-
-  await fsp.mkdir(OUT_DIR, { recursive: true });
-
-  const manifest = { generatedAt: new Date().toISOString(), source: sources.length, tiers: {} };
-  for (const tier of TIERS) {
-    const result = await buildTier(tier, sources);
-    manifest.tiers[tier.name] = { frames: result.frames, width: result.width };
+  console.log(`    ${scroll.length} usable frames`);
+  if (scroll.length !== EXPECTED_SCROLL) {
+    console.warn(`    WARNING: expected ${EXPECTED_SCROLL}, found ${scroll.length}`);
   }
 
-  // Static hero for prefers-reduced-motion, and the LCP image for the page.
-  await sharp(sources[sources.length - 1])
-    .flatten({ background: BG })
-    .resize({ width: 1600, withoutEnlargement: true })
-    .webp({ quality: 82, effort: 6 })
-    .toFile(path.join(OUT_DIR, "poster.webp"));
-  console.log("\n  poster.webp written (final polished frame)");
+  console.log(`\n  rotate source: ${path.relative(ROOT, RAW_ROTATE)}`);
+  let rotate = await usableFrames(RAW_ROTATE);
+  let rotateSource;
+  if (rotate?.length) {
+    rotateSource = "raw-360";
+    console.log(`    ${rotate.length} usable frames`);
+    if (rotate.length !== EXPECTED_ROTATE) {
+      console.warn(`    WARNING: expected ${EXPECTED_ROTATE}, found ${rotate.length}`);
+    }
+  } else {
+    // Forward through the finished stone's turn, then back, skipping both end
+    // frames on the return so no frame shows twice at the loop point.
+    const forward = scroll.slice(STANDIN_FROM);
+    const back = forward.slice(1, -1).reverse();
+    rotate = [...forward, ...back];
+    rotateSource = `stand-in: raw-700 frames ${STANDIN_FROM}-${scroll.length - 1}, forward then back`;
+    console.log(`    not found — using ${rotateSource} (${rotate.length} frames)`);
+  }
 
+  await fsp.mkdir(OUT_DIR, { recursive: true });
+  for (const name of RETIRED) {
+    await fsp.rm(path.join(OUT_DIR, name), { recursive: true, force: true });
+  }
+
+  console.log("\n  encoding");
+  const tiers = {
+    scroll: await writeTier("scroll", scroll, 1600, 76),
+    "scroll-mobile": await writeTier(
+      "scroll-mobile",
+      scroll.filter((_, i) => i % 3 === 0),
+      900,
+      72,
+    ),
+    rotate: { ...(await writeTier("rotate", rotate, 720, 78)), source: rotateSource },
+  };
+
+  const manifest = { generatedAt: new Date().toISOString(), tiers };
   await fsp.mkdir(path.dirname(MANIFEST), { recursive: true });
   await fsp.writeFile(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`  manifest written to ${path.relative(ROOT, MANIFEST)}\n`);
-
-  const totalMb = Object.values(manifest.tiers).length
-    ? fs
-        .readdirSync(OUT_DIR)
-        .filter((d) => fs.statSync(path.join(OUT_DIR, d)).isDirectory())
-        .reduce((sum, d) => {
-          const dir = path.join(OUT_DIR, d);
-          return (
-            sum +
-            fs.readdirSync(dir).reduce((s, f) => s + fs.statSync(path.join(dir, f)).size, 0)
-          );
-        }, 0) /
-      1024 /
-      1024
-    : 0;
-  console.log(`  done — ${totalMb.toFixed(1)} MB in public/sequence\n`);
+  console.log(`\n  manifest: ${path.relative(ROOT, MANIFEST)}\n`);
 }
 
 await main();

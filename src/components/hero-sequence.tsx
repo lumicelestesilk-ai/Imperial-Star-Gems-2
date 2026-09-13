@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { STAGES, frameCount, frameUrl, posterUrl, stageAt, type SequenceTier } from "@/lib/sequence";
+import { STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
 
 /** Frames fetched per batch. Small enough to start drawing early, large enough
  *  to keep the connection busy. */
@@ -21,10 +21,9 @@ export function HeroSequence() {
   const requestedRef = useRef<Set<number>>(new Set());
   const drawnIndexRef = useRef(-1);
   const currentIndexRef = useRef(0);
-  const tierRef = useRef<SequenceTier>("desktop");
+  const tierRef = useRef<SequenceTier>("scroll");
 
   const [ready, setReady] = useState(false);
-  const [reduced, setReduced] = useState<boolean | null>(null);
   const [stageId, setStageId] = useState(STAGES[0].id);
   const [started, setStarted] = useState(false);
 
@@ -104,29 +103,30 @@ export function HeroSequence() {
     [draw],
   );
 
-  /* ------------------------------------------------- reduced-motion + tier */
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setReduced(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-
   /* ------------------------------------------------------------ the machine */
 
+  /*
+    No prefers-reduced-motion branch here, deliberately. The sequence only moves
+    while the visitor is scrolling and stops the instant they stop, so it is
+    direct manipulation rather than autoplaying motion. It used to swap in a
+    static poster under reduced motion — and since Windows Server, RDP sessions
+    and many power-saving setups report reduced motion by default, visitors on
+    those machines saw one still image that never changed.
+  */
   useEffect(() => {
-    if (reduced === null || reduced) return;
-
     const section = sectionRef.current;
     const pin = pinRef.current;
     if (!section || !pin) return;
 
-    // Low-power devices decode the thinned, smaller tier.
-    tierRef.current = window.matchMedia("(max-width: 900px)").matches ? "mobile" : "desktop";
+    // Narrow screens decode the thinned, smaller tier.
+    tierRef.current = window.matchMedia("(max-width: 900px)").matches ? "scroll-mobile" : "scroll";
     const count = frameCount(tierRef.current);
     imagesRef.current = new Array(count).fill(null);
+    // Start from a clean slate on every mount. React's development double-mount
+    // would otherwise leave indices marked "requested" by a torn-down run.
+    requestedRef.current = new Set();
+    drawnIndexRef.current = -1;
+    currentIndexRef.current = 0;
 
     let cancelled = false;
     let cleanupScroll: (() => void) | undefined;
@@ -222,37 +222,18 @@ export function HeroSequence() {
       ro.disconnect();
       cleanupScroll?.();
     };
-  }, [reduced, draw, loadFrame, resizeCanvas]);
+  }, [draw, loadFrame, resizeCanvas]);
 
   /* ----------------------------------------------------------------- render */
 
   const activeStage = STAGES.find((s) => s.id === stageId) ?? STAGES[0];
-
-  // Static hero: the finished stone, no scroll playback at all.
-  if (reduced) {
-    return (
-      <section className="border-b border-hairline">
-        <div className="mx-auto grid min-h-[calc(100svh-72px)] max-w-[1440px] items-center gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[5fr_7fr]">
-          <HeroTitle />
-          <div className="rounded-[36px] border border-hairline bg-porcelain p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={posterUrl()}
-              alt="A polished radiant-cut diamond, face up, on a white ground."
-              className="mx-auto aspect-square w-full max-w-[560px] object-contain"
-            />
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section ref={sectionRef} className="relative border-b border-hairline" aria-labelledby="hero-heading">
       {/*
         Height comes from the ScrollTrigger pin spacer rather than a fixed
         `700svh` here: seven viewport heights in total, one showing the hero and
-        six scrubbing the 689-frame turn.
+        six scrubbing the 700-frame sequence.
       */}
       <div
         ref={pinRef}

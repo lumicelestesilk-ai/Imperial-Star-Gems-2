@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeroSequence } from "@/components/hero-sequence";
+import { DiamondRotation } from "@/components/diamond-rotation";
 import { ShapeGrid } from "@/components/shape-grid";
 import { StoneGrid } from "@/components/stone-grid";
 import { ShapeGlyph } from "@/components/shape-glyph";
@@ -35,6 +36,27 @@ export default function HomePage() {
   return (
     <>
       <HeroSequence />
+
+      <section className="border-b border-hairline" aria-labelledby="rotation-heading">
+        <div className="mx-auto grid max-w-[1440px] items-center gap-10 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[5fr_6fr] lg:gap-16">
+          <div>
+            <h2
+              id="rotation-heading"
+              className="font-display text-[clamp(2rem,4.4vw,3.2rem)]"
+            >
+              The finished stone, in the round
+            </h2>
+            <p className="measure mt-4 text-ink-muted">
+              A diamond is judged from every angle, not only face up. Let it turn, or take hold of
+              it and turn it yourself — the way it would be examined across a grading table.
+            </p>
+          </div>
+          <DiamondRotation
+            label="the finished radiant-cut diamond"
+            className="mx-auto w-full max-w-[560px]"
+          />
+        </div>
+      </section>
 
       <ShapeGrid
         heading="Eleven shapes, one discipline"

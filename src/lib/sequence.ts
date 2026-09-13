@@ -10,20 +10,24 @@ import manifest from "@/data/sequence-manifest.json";
  */
 const BASE = (process.env.NEXT_PUBLIC_SEQUENCE_BASE_URL || "/sequence").replace(/\/+$/, "");
 
-export type SequenceTier = "desktop" | "mobile" | "spin";
+/**
+ * Two independent sequences, each in its own folder:
+ *
+ *   scroll/         00001.webp – 00700.webp  scroll-scrubbed hero (desktop)
+ *   scroll-mobile/  every third scroll frame, smaller, for narrow screens
+ *   rotate/         00001.webp – 00NNN.webp  looping 360° turn of the stone
+ */
+export type SequenceTier = "scroll" | "scroll-mobile" | "rotate";
 
-export const SEQUENCE = {
-  desktop: manifest.tiers.desktop,
-  mobile: manifest.tiers.mobile,
-  spin: manifest.tiers.spin,
-} as const;
+export const SEQUENCE: Record<SequenceTier, { frames: number; width: number }> = manifest.tiers;
 
+/**
+ * Files on disk are numbered from 00001, matching the source renders. Code
+ * works in 0-based indices everywhere, so the +1 happens here and only here —
+ * index 0 is 00001.webp, index 699 is 00700.webp.
+ */
 export function frameUrl(tier: SequenceTier, index: number): string {
-  return `${BASE}/${tier}/${String(index).padStart(5, "0")}.webp`;
-}
-
-export function posterUrl(): string {
-  return `${BASE}/poster.webp`;
+  return `${BASE}/${tier}/${String(index + 1).padStart(5, "0")}.webp`;
 }
 
 export function frameCount(tier: SequenceTier): number {
@@ -101,12 +105,12 @@ export const STAGES: Stage[] = [
   },
 ];
 
-/** The representative still for a stage, taken from the desktop tier. */
-export function stageStillUrl(stage: Stage): string {
-  const last = SEQUENCE.desktop.frames - 1;
-  return frameUrl("desktop", Math.round(stage.still * last));
-}
-
 export function stageAt(progress: number): Stage {
   return STAGES.find((s) => progress >= s.from && progress < s.to) ?? STAGES[STAGES.length - 1];
+}
+
+/** The representative still for a stage, taken from the full-size scroll tier. */
+export function stageStillUrl(stage: Stage): string {
+  const last = SEQUENCE.scroll.frames - 1;
+  return frameUrl("scroll", Math.round(stage.still * last));
 }

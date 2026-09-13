@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-09-13T07:17:28.654Z",
-  "source": 689,
+  "generatedAt": "2026-09-13T08:20:16.995Z",
   "tiers": {
-    "desktop": {
-      "frames": 689,
+    "scroll": {
+      "frames": 700,
       "width": 1600
     },
-    "mobile": {
-      "frames": 230,
+    "scroll-mobile": {
+      "frames": 234,
       "width": 900
     },
-    "spin": {
-      "frames": 97,
-      "width": 640
+    "rotate": {
+      "frames": 138,
+      "width": 720,
+      "source": "stand-in: raw-700 frames 630-699, forward then back"
     }
   }
 }

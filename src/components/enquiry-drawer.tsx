@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { SpinViewer } from "./spin-viewer";
+import { DiamondRotation } from "./diamond-rotation";
 import { EnquiryForm } from "./enquiry-form";
 import type { Stone } from "@/lib/stones";
 import { enquiryBody, mailtoHref, stoneDescriptor, whatsappHref } from "@/lib/contact";
@@ -125,7 +125,9 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
               </p>
 
               <div className="mt-6">
-                <SpinViewer label={`${stone.shapeName} ${stone.carat.toFixed(2)} carat diamond`} />
+                <DiamondRotation
+                  label={`the ${stone.shapeName} ${stone.carat.toFixed(2)} carat diamond`}
+                />
               </div>
 
               <dl className="mt-7 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-hairline pt-6">

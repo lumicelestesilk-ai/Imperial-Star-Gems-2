@@ -9,6 +9,8 @@ build/
 next-env.d.ts
 *.tsbuildinfo
 
-# Raw PNG source frames are an intermediate build input (~165 MB), never shipped.
+# Raw PNG source frames are an intermediate build input, never shipped.
 # Keep them out of the repo; `npm run sequence:convert` regenerates public/sequence.
 assets/sequence/raw/
+assets/sequence/raw-700/
+assets/sequence/raw-360/
