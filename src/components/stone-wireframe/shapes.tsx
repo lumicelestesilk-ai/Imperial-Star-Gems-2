@@ -71,6 +71,10 @@ export function TrillionWireframe(props: WireframeProps) {
   return <FacetedWireframe {...props} geometry={getStoneGeometry("trillion")} />;
 }
 
+export function HexagonWireframe(props: WireframeProps) {
+  return <FacetedWireframe {...props} geometry={getStoneGeometry("hexagon")} />;
+}
+
 export const WIREFRAMES: Record<WireframeShape, ComponentType<WireframeProps>> = {
   round: RoundWireframe,
   princess: PrincessWireframe,
@@ -83,4 +87,5 @@ export const WIREFRAMES: Record<WireframeShape, ComponentType<WireframeProps>> =
   asscher: AsscherWireframe,
   heart: HeartWireframe,
   trillion: TrillionWireframe,
+  hexagon: HexagonWireframe,
 };

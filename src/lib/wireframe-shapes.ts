@@ -16,6 +16,7 @@ export const WIREFRAME_SHAPES = [
   "asscher",
   "heart",
   "trillion",
+  "hexagon",
 ] as const satisfies readonly ShapeSlug[];
 
 export type WireframeShape = (typeof WIREFRAME_SHAPES)[number];

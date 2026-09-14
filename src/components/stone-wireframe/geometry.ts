@@ -284,6 +284,23 @@ const BUILDERS: Record<WireframeShape, () => BufferGeometry> = {
     return brilliant(samplePolygon(corners, 36), { table: 0.55, crown: 0.2, pavilion: 0.6 });
   },
 
+  // Elongated six-sided outline: flat top and bottom, pointed sides.
+  hexagon: () =>
+    brilliant(
+      samplePolygon(
+        [
+          [-0.43, -1.05],
+          [0.43, -1.05],
+          [1, 0],
+          [0.43, 1.05],
+          [-0.43, 1.05],
+          [-1, 0],
+        ],
+        30,
+      ),
+      { table: 0.55, crown: 0.28, pavilion: 0.88 },
+    ),
+
   emerald: () =>
     stepCut(
       octagon(1, 1.4, 0.3),

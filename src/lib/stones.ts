@@ -1,5 +1,5 @@
 import { SHAPES, type Shape, type ShapeSlug } from "./shapes";
-import { REAL_ROUND_LAB_STONES } from "./real-stones";
+import { REAL_LAB_STONES } from "./real-stones";
 
 export type Origin = "natural" | "lab";
 
@@ -13,8 +13,8 @@ export type Stone = {
   carat: number;
   color: ColorGrade;
   clarity: ClarityGrade;
-  /** Cut grade for brilliants, finish grade for step cuts. */
-  cut: CutGrade;
+  /** Round brilliants only — IGI/GIA don't issue an overall cut grade for fancy shapes. */
+  cut?: CutGrade;
   polish: CutGrade;
   symmetry: CutGrade;
   fluorescence: Fluorescence;
@@ -167,12 +167,15 @@ function buildCatalog(origin: Origin, count: number, seedBase: number): Stone[] 
 export const NATURAL_STONES: Stone[] = buildCatalog("natural", 66, 20260913);
 
 /**
- * Round is real stock (`real-stones.ts`), not generated — the generated round
- * entries are dropped from the lab catalogue so they don't sit alongside it.
+ * Any shape with real stock (`real-stones.ts`) drops its generated entries
+ * from the lab catalogue, so the two don't sit side by side. Shapes with no
+ * real stock yet (princess, at last count) stay fully generated.
  */
+const REAL_LAB_SHAPES = new Set(REAL_LAB_STONES.map((s) => s.shape));
+
 export const LAB_STONES: Stone[] = [
-  ...buildCatalog("lab", 55, 77010203).filter((s) => s.shape !== "round"),
-  ...REAL_ROUND_LAB_STONES,
+  ...buildCatalog("lab", 55, 77010203).filter((s) => !REAL_LAB_SHAPES.has(s.shape)),
+  ...REAL_LAB_STONES,
 ];
 
 export const ALL_STONES: Stone[] = [...NATURAL_STONES, ...LAB_STONES];

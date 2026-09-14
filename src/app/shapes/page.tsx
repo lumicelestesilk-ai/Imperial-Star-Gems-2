@@ -7,7 +7,7 @@ import { LAB_STONES, NATURAL_STONES, countByShape } from "@/lib/stones";
 export const metadata: Metadata = {
   title: "Diamond shapes",
   description:
-    "Round, princess, cushion, emerald, oval, pear, marquise, radiant, asscher, heart and trillion — what each cut asks of the cutter, and what it gives back.",
+    "Round, princess, cushion, emerald, oval, pear, marquise, radiant, asscher, heart, trillion and hexagon — what each cut asks of the cutter, and what it gives back.",
 };
 
 export default function ShapesPage() {
@@ -19,12 +19,12 @@ export default function ShapesPage() {
       <section className="border-b border-hairline">
         <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="max-w-[900px] font-display text-[clamp(2.4rem,5.6vw,4.2rem)]">
-            Eleven outlines, and what each one demands
+            Twelve outlines, and what each one demands
           </h1>
           <p className="measure mt-5 text-ink-muted">
             Shape is not decoration. It decides how much of the rough survives, where light goes
             once it enters the stone, and how much an inclusion or a half-degree of asymmetry will
-            show. These are the eleven we hold.
+            show. These are the twelve we hold.
           </p>
         </div>
       </section>

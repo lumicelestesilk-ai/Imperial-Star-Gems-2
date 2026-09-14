@@ -33,7 +33,7 @@ export function StoneCard({ stone, onEnquire }: { stone: Stone; onEnquire: (s: S
       <dl className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3 border-t border-hairline pt-4">
         <Spec label="Colour" value={stone.color} />
         <Spec label="Clarity" value={stone.clarity} />
-        <Spec label="Cut" value={stone.cut} />
+        {stone.cut ? <Spec label="Cut" value={stone.cut} /> : null}
         <Spec label="Polish" value={stone.polish} />
         <Spec label="Symmetry" value={stone.symmetry} />
         <Spec label="Report" value={stone.lab} />

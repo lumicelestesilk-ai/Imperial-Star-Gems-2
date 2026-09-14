@@ -136,7 +136,7 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
                 <Row label="Carat" value={stone.carat.toFixed(2)} />
                 <Row label="Colour" value={stone.color} />
                 <Row label="Clarity" value={stone.clarity} />
-                <Row label="Cut" value={stone.cut} />
+                {stone.cut ? <Row label="Cut" value={stone.cut} /> : null}
                 <Row label="Polish" value={stone.polish} />
                 <Row label="Symmetry" value={stone.symmetry} />
                 <Row label="Fluorescence" value={stone.fluorescence} />

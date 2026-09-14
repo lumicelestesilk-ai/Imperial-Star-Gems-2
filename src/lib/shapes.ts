@@ -11,7 +11,8 @@ export type ShapeSlug =
   | "radiant"
   | "asscher"
   | "heart"
-  | "trillion";
+  | "trillion"
+  | "hexagon";
 
 export type Shape = {
   slug: ShapeSlug;
@@ -139,6 +140,16 @@ export const SHAPES: Shape[] = [
     summary: "Three sides, shallow depth, wide spread.",
     note: "Cut shallow, so it spreads wide for its weight and sits low. Sides may be straight or slightly convex. Most often specified as a matched pair flanking a centre stone, which means symmetry between the two matters as much as the grade of either.",
     geometry: GLYPHS.trillion,
+  },
+  {
+    slug: "hexagon",
+    name: "Hexagon",
+    code: "HX",
+    cutFamily: "Mixed",
+    ratio: "1.05 – 1.20",
+    summary: "Six sides, gently elongated, with a full brilliant facet pattern.",
+    note: "A mixed cut that keeps the six-sided outline close to the rough rather than rounding it away, faceted as a brilliant rather than in steps. Newer to the trade and less standardised than the classic shapes, so proportions vary more from one cutter to the next — worth seeing individually before a setting is chosen.",
+    geometry: GLYPHS.hexagon,
   },
 ];
 

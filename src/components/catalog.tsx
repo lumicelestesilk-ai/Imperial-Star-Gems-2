@@ -84,7 +84,7 @@ export function Catalog({
       if (filters.shapes.length && !filters.shapes.includes(s.shape)) return false;
       if (filters.colors.length && !filters.colors.includes(s.color)) return false;
       if (filters.clarities.length && !filters.clarities.includes(s.clarity)) return false;
-      if (filters.cuts.length && !filters.cuts.includes(s.cut)) return false;
+      if (filters.cuts.length && (!s.cut || !filters.cuts.includes(s.cut))) return false;
       if (filters.labs.length && !filters.labs.includes(s.lab)) return false;
       if (s.carat < filters.caratMin || s.carat > filters.caratMax) return false;
       return true;

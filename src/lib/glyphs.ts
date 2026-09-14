@@ -1,5 +1,5 @@
 /**
- * Wireframe geometry for the eleven cut shapes, drawn face-up in a 100x100
+ * Wireframe geometry for the twelve cut shapes, drawn face-up in a 100x100
  * viewBox as a gemmologist's plotting diagram would draw them: a girdle
  * outline, then the facet lines inside it.
  *
@@ -158,6 +158,19 @@ export const GLYPHS: Record<string, GlyphGeometry> = {
       "M86 80L72 74",
       "M14 80L28 74",
       "M50 86L50 74",
+    ],
+  },
+
+  hexagon: {
+    outline: "M35 12L65 12L85 50L65 88L35 88L15 50Z",
+    facets: [
+      "M41.75 29.1L58.25 29.1L69.25 50L58.25 70.9L41.75 70.9L30.75 50Z",
+      "M35 12L41.75 29.1",
+      "M65 12L58.25 29.1",
+      "M85 50L69.25 50",
+      "M65 88L58.25 70.9",
+      "M35 88L41.75 70.9",
+      "M15 50L30.75 50",
     ],
   },
 };

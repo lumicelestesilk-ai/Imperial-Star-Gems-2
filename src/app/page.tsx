@@ -59,7 +59,7 @@ export default function HomePage() {
       </section>
 
       <ShapeGrid
-        heading="Eleven shapes, one discipline"
+        heading="Twelve shapes, one discipline"
         intro="Every outline asks something different of the cutter — a step cut hides nothing, a marquise punishes asymmetry, a round is judged against a published standard. Choose a shape to see what we hold in it."
       />
 
