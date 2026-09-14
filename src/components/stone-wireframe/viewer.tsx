@@ -17,8 +17,10 @@ export function StoneWireframeViewer({ shape, label }: { shape: WireframeShape; 
   const [playing, setPlaying] = useState(true);
   const [dragging, setDragging] = useState(false);
 
+  // Always starts spinning, even under prefers-reduced-motion: Windows Server,
+  // RDP and power-saving setups report it by default, which left the model
+  // frozen for those visitors. The Pause button stays available.
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(false);
     // Lines take the site's ink colour from CSS rather than a second hard-coded copy.
     if (frameRef.current) setColor(getComputedStyle(frameRef.current).color);
     return () => window.clearTimeout(resumeRef.current);
