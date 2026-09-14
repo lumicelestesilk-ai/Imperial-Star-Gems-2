@@ -48,6 +48,16 @@
   --ease-quiet: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/*
+  Descendant variants for <body data-device>, set by DeviceAttribute once the
+  page hydrates — e.g. `device-mobile:hidden`. Tailwind's built-in
+  `data-[device=mobile]:` only matches the element carrying the attribute, not
+  its children. Prefer `max-md:` for pure layout: media queries apply from the
+  first paint, while these wait for hydration.
+*/
+@custom-variant device-mobile (&:where(body[data-device="mobile"] *));
+@custom-variant device-tablet (&:where(body[data-device="tablet"] *));
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -153,6 +163,37 @@
     stroke: var(--color-ink);
     stroke-dashoffset: 0;
     opacity: 1;
+  }
+
+  /*
+    Touch screens have no hover. Facets draw at rest so the plotting detail
+    isn't locked behind a gesture, the glint lights while a card is pressed or
+    focused, and the sticky :hover mobile browsers leave behind after a tap
+    doesn't keep a card lit. Mouse and trackpad devices never match this block.
+  */
+  @media (hover: none) {
+    .glyph-auto .glyph-facet {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+
+    .group:hover:not(:active):not(:focus-within) .glyph-auto .glyph-outline {
+      fill: transparent;
+      stroke: var(--color-metal);
+    }
+
+    .group:hover:not(:active):not(:focus-within) .glyph-auto .glyph-facet {
+      stroke: var(--color-metal);
+    }
+
+    .group:active .glyph-auto .glyph-outline {
+      fill: var(--color-facet);
+      stroke: var(--color-ink);
+    }
+
+    .group:active .glyph-auto .glyph-facet {
+      stroke: var(--color-ink);
+    }
   }
 
   /* Static wireframe: outline only, facets always drawn, no interaction. */

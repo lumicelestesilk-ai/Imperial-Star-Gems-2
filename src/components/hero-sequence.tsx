@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
+import { useViewportWidth } from "@/hooks/use-device-type";
 
 /** Frames fetched per batch. Small enough to start drawing early, large enough
  *  to keep the connection busy. */
 const BATCH = 48;
+/** At or below this width the thinned `scroll-mobile` tier is decoded. Not a
+ *  device-type breakpoint: tablets up to 900px have always had the small tier. */
+const MOBILE_TIER_MAX_WIDTH = 900;
 /** Parallel requests inside a batch. */
 const LANES = 8;
 /** Height of the sticky site header, in pixels. */
@@ -26,6 +30,9 @@ export function HeroSequence() {
   const [ready, setReady] = useState(false);
   const [stageId, setStageId] = useState(STAGES[0].id);
   const [started, setStarted] = useState(false);
+
+  const viewportWidth = useViewportWidth();
+  const hydrated = viewportWidth !== null;
 
   /* ---------------------------------------------------------------- drawing */
 
@@ -114,12 +121,16 @@ export function HeroSequence() {
     those machines saw one still image that never changed.
   */
   useEffect(() => {
+    // Wait for the real width so a phone never starts loading the desktop tier.
+    if (viewportWidth === null) return;
     const section = sectionRef.current;
     const pin = pinRef.current;
     if (!section || !pin) return;
 
-    // Narrow screens decode the thinned, smaller tier.
-    tierRef.current = window.matchMedia("(max-width: 900px)").matches ? "scroll-mobile" : "scroll";
+    // Narrow screens decode the thinned, smaller tier. Sampled once per mount,
+    // as before — `hydrated` is the dependency, not the width, so resizing
+    // afterwards doesn't swap tiers mid-scroll.
+    tierRef.current = viewportWidth <= MOBILE_TIER_MAX_WIDTH ? "scroll-mobile" : "scroll";
     const count = frameCount(tierRef.current);
     imagesRef.current = new Array(count).fill(null);
     // Start from a clean slate on every mount. React's development double-mount
@@ -222,7 +233,7 @@ export function HeroSequence() {
       ro.disconnect();
       cleanupScroll?.();
     };
-  }, [draw, loadFrame, resizeCanvas]);
+  }, [hydrated, draw, loadFrame, resizeCanvas]);
 
   /* ----------------------------------------------------------------- render */
 

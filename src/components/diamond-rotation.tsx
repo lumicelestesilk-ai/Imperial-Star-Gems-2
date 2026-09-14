@@ -323,7 +323,7 @@ export function DiamondRotation({ label, className }: { label: string; className
           type="button"
           onClick={togglePlaying}
           aria-pressed={!playing}
-          className="rounded-full border border-hairline px-4 py-1.5 text-[13px] transition-colors duration-200 hover:border-ink"
+          className="rounded-full border border-hairline px-4 py-1.5 text-[13px] transition-colors duration-200 hover:border-ink max-md:min-h-11 max-md:px-5"
         >
           {playing ? "Pause rotation" : "Play rotation"}
         </button>

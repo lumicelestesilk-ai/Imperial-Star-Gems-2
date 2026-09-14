@@ -7,6 +7,11 @@ import { StoneModel } from "./stone-model";
 import { EnquiryForm } from "./enquiry-form";
 import type { Stone } from "@/lib/stones";
 import { enquiryBody, mailtoHref, stoneDescriptor, whatsappHref } from "@/lib/contact";
+import { useDeviceType } from "@/hooks/use-device-type";
+
+const MODAL_HIDDEN = { opacity: 0, scale: 0.96, y: 12 };
+/** Phones: a full-screen sheet that rises from the bottom edge. */
+const SHEET_HIDDEN = { opacity: 1, scale: 1, y: "100%" };
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -15,6 +20,7 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const hidden = useDeviceType() === "mobile" ? SHEET_HIDDEN : MODAL_HIDDEN;
 
   useEffect(() => setMounted(true), []);
 
@@ -80,7 +86,7 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
       {stone ? (
         <motion.div
           key="enquiry"
-          className="fixed inset-0 z-[70] flex justify-end"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 max-md:p-0!"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -98,11 +104,11 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
             role="dialog"
             aria-modal="true"
             aria-labelledby="enquiry-title"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 320, damping: 36, mass: 0.9 }}
-            className="relative flex h-full w-full max-w-[560px] flex-col overflow-y-auto border-l border-hairline bg-porcelain"
+            initial={hidden}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={hidden}
+            transition={{ type: "spring", stiffness: 380, damping: 32, mass: 0.8 }}
+            className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-[560px] flex-col overflow-y-auto rounded-[28px] border border-hairline bg-porcelain shadow-[0_24px_80px_-20px_rgba(0,0,0,0.35)] sm:max-h-[calc(100dvh-3rem)] max-md:h-dvh max-md:max-h-none! max-md:max-w-none max-md:rounded-none max-md:border-0 max-md:shadow-none"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-hairline bg-porcelain/90 px-6 py-4 backdrop-blur-md">
               <p className="text-[12px] tabular-nums text-ink-muted">{stone.sku}</p>
@@ -124,7 +130,7 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
                 {stone.origin === "natural" ? "natural" : "lab-grown"}
               </p>
 
-              <div className="mt-6">
+              <div className="mx-auto mt-6 w-1/2">
                 <StoneModel
                   stone={stone}
                   label={`the ${stone.shapeName} ${stone.carat.toFixed(2)} carat diamond`}

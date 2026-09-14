@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
+import { useDeviceType } from "@/hooks/use-device-type";
 
 const NAV = [
   { href: "/natural-diamonds", label: "Natural" },
@@ -18,6 +19,9 @@ const NAV = [
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
+  // Phones get a full-height drawer; tablets keep the existing dropdown.
+  const drawer = useDeviceType() === "mobile";
 
   // A route change should always leave the menu closed.
   useEffect(() => {
@@ -33,8 +37,44 @@ export function SiteHeader() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // The drawer covers the page, so hold the page still and keep Tab inside the
+  // header (logo, toggle, drawer links) while it is open.
+  useEffect(() => {
+    if (!open || !drawer) return;
+    const { body } = document;
+    const prevOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+
+    const onKey = (e: KeyboardEvent) => {
+      const header = headerRef.current;
+      if (e.key !== "Tab" || !header) return;
+      const items = Array.from(
+        header.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"),
+      ).filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, drawer]);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-hairline bg-porcelain/85 backdrop-blur-md">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 border-b border-hairline bg-porcelain/85 backdrop-blur-md"
+    >
       <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between gap-6 px-5 sm:px-8">
         <Link
           href="/"
@@ -107,7 +147,52 @@ export function SiteHeader() {
       </div>
 
       <AnimatePresence initial={false}>
-        {open ? (
+        {open && drawer ? (
+          <motion.div
+            key="mobile-nav-drawer"
+            id="mobile-nav"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: [0.22, 0.61, 0.36, 1] }}
+            // Absolute, not fixed: the header's backdrop-filter would make a
+            // fixed child position against the header instead of the viewport.
+            className="absolute inset-x-0 top-full flex h-[calc(100dvh-72px)] flex-col overflow-y-auto border-t border-hairline bg-porcelain"
+          >
+            <nav className="flex flex-col px-5 py-2" aria-label="Primary">
+              {NAV.map((item) => {
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                    className={`flex min-h-16 items-center justify-between border-b border-hairline font-display text-[28px] leading-none ${
+                      active ? "text-ink" : "text-ink-muted"
+                    }`}
+                  >
+                    {item.label}
+                    {active ? <span aria-hidden className="h-px w-6 bg-ink" /> : null}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="mt-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6">
+              <Link
+                href="/contact"
+                onClick={() => setOpen(false)}
+                className="block rounded-full bg-ink px-6 py-3.5 text-center text-[15px] text-white"
+              >
+                Enquire
+              </Link>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {open && !drawer ? (
           <motion.div
             id="mobile-nav"
             initial={{ height: 0, opacity: 0 }}

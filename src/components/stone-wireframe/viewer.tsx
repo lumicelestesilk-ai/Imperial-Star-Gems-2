@@ -53,12 +53,12 @@ export function StoneWireframeViewer({ shape, label }: { shape: WireframeShape; 
         </Canvas>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <button
           type="button"
           onClick={() => setPlaying((p) => !p)}
           aria-pressed={!playing}
-          className="rounded-full border border-hairline px-4 py-1.5 text-[13px] transition-colors duration-200 hover:border-ink"
+          className="rounded-full border border-hairline px-4 py-1.5 text-[13px] transition-colors duration-200 hover:border-ink max-md:min-h-11 max-md:px-5"
         >
           {playing ? "Pause rotation" : "Play rotation"}
         </button>
