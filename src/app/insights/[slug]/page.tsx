@@ -112,8 +112,8 @@ export default async function InsightPage({ params }: Props) {
         </div>
 
         <p className="mt-12 text-[13px] text-ink-muted">
-          Market commentary, not investment advice. Prices move; figures are indicative and correct
-          as of the date above.
+          Market commentary drawn from publicly available market data and trade reporting, not
+          investment advice. Prices move; figures are indicative and correct as of the date above.
         </p>
 
         <aside className="mt-10 rounded-[22px] bg-panel p-7 sm:p-8">
