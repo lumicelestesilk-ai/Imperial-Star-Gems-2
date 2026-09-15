@@ -9,8 +9,12 @@
  *   node scripts/render-wireframe-sequence.mjs                 all 700 frames
  *   node scripts/render-wireframe-sequence.mjs --frames=0,350  selected frames
  *
- * Output: assets/sequence/wire-700/_00000.png – _00699.png, 2160px, transparent.
- * Feed it to the site with: SEQUENCE_SOURCE=wire-700 node scripts/convert-sequence.mjs
+ *   node scripts/render-wireframe-sequence.mjs --turntable     seamless 360° loop
+ *
+ * Output: assets/sequence/wire-700/_00000.png – _00699.png, 2160px, transparent;
+ * the turntable goes to assets/sequence/wire-360/_00000.png – _00332.png.
+ * Feed both to the site with:
+ *   SEQUENCE_SOURCE=wire-700 ROTATE_SOURCE=wire-360 node scripts/convert-sequence.mjs
  */
 
 import { createRequire } from "node:module";
@@ -28,6 +32,9 @@ const sharp = require("sharp");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "assets", "sequence", "wire-700");
 const FRAMES = 700;
+const OUT_TURNTABLE = path.join(ROOT, "assets", "sequence", "wire-360");
+/** Frames in one full turn of the finished stone; at 30 fps, about eleven seconds. */
+const TURNTABLE = 333;
 const SIZE = 2160;
 /** Output pixels per pixel of the 1080px original, which all framing numbers are measured in. */
 const U = SIZE / 1080;
@@ -211,14 +218,16 @@ function node({ position = [0, 0, 0], rotation = [0, 0, 0], scale = 1, parent } 
 }
 
 /** Everything drawn in frame f, each with its transform, colours and opacities. */
-function scene(f) {
+function scene(f, spin = 0) {
   const root = new THREE.Object3D();
   const items = [];
   const add = (item) => items.push(item);
   const HALF = Math.PI / 2;
 
   const view = {
-    cx: keys(f, [[0, 556], [330, 556], [375, 520], [400, 562], [470, 566], [500, 572], [699, 570]]) * U,
+    // Framing is held constant from 500 on: the hero hands over to the turntable, rendered at
+    // frame 699's framing, partway through that range, and any drift would show as a jump.
+    cx: keys(f, [[0, 556], [330, 556], [375, 520], [400, 562], [470, 566], [500, 570], [699, 570]]) * U,
     cy: keys(f, [[0, 540], [330, 540], [375, 470], [400, 528], [470, 540], [500, 582], [699, 582]]) * U,
     zoom: keys(f, [[0, 1], [385, 1], [405, 1.22], [480, 1.22], [505, 1.5], [699, 1.5]]),
   };
@@ -336,7 +345,7 @@ function scene(f) {
       });
     }
 
-    const emeraldFade = 1 - ramp(f, 586, 600);
+    const emeraldFade = 1 - ramp(f, 560, 576);
     if (emeraldFade > 0) {
       add({
         obj: node({
@@ -344,7 +353,7 @@ function scene(f) {
           position: [keys(f, [[340, 0.06], [400, 0.14], [470, 0.1], [505, 0]]), keys(f, [[340, -0.1], [400, -0.06], [505, 0]]), 0],
           rotation: [
             HALF + keys(f, [[340, 0.25], [376, 0.5], [420, 0.15], [500, 0]]),
-            keys(f, [[340, 0.3], [376, 0.9], [405, 0.28], [445, -0.35], [490, 0], [545, 0.14], [590, 0]]),
+            keys(f, [[340, 0.3], [376, 0.9], [405, 0.28], [445, -0.35], [490, 0], [530, 0.12], [565, 0]]),
             0,
           ],
           scale: keys(f, [[340, 0.6], [405, 0.6], [505, 0.7]]),
@@ -353,21 +362,21 @@ function scene(f) {
         line: COLOR.graphite,
         lineAlpha: pieces * emeraldFade,
         // The preform is frosted before it is faceted; the faint triangulation stands in for that surface.
-        meshAlpha: (0.08 + 0.2 * span(f, 495, 520, 570, 595)) * pieces * emeraldFade,
+        meshAlpha: (0.08 + 0.2 * span(f, 495, 515, 550, 570)) * pieces * emeraldFade,
         fill: COLOR.graphite,
         fillAlpha: 0.04 * pieces * emeraldFade,
       });
     }
   }
 
-  /* The finished radiant, turning through edge-on views to face up. */
-  const radiant = ramp(f, 584, 600);
+  /* The finished radiant. It holds face up here; the site turns it on the turntable loop. */
+  const radiant = ramp(f, 560, 576);
   if (radiant > 0) {
     const s = 0.7;
     add({
       obj: node({
         parent: root,
-        rotation: [HALF, linear(f, [[584, 0], [620, HALF], [650, Math.PI], [680, 3 * HALF], [699, 2 * Math.PI]]), 0],
+        rotation: [HALF, spin, 0],
         scale: [0.88 * s, s, s],
       }),
       model: MODELS.radiant,
@@ -376,7 +385,7 @@ function scene(f) {
       fill: COLOR.graphite,
       meshAlpha: 0.3 * radiant,
       fillAlpha: 0.035 * radiant,
-      dispersion: ramp(f, 600, 645),
+      dispersion: ramp(f, 576, 600),
     });
   }
 
@@ -386,7 +395,8 @@ function scene(f) {
     view,
     items,
     laser: span(f, 280, 292, 324, 338),
-    dust: span(f, 588, 602, 628, 662),
+    // Clears by frame 600, so the loop's dust-free first frame follows on without a pop.
+    dust: span(f, 562, 574, 590, 600),
   };
 }
 
@@ -405,8 +415,8 @@ function projector(view) {
   };
 }
 
-function renderFrame(f) {
-  const { view, items, laser, dust } = scene(f);
+function renderFrame(f, { spin = 0, file } = {}) {
+  const { view, items, laser, dust } = scene(f, spin);
   const project = projector(view);
   const fills = [];
   const meshLines = [];
@@ -475,7 +485,7 @@ function renderFrame(f) {
 
   if (dust > 0) {
     const m = new THREE.Matrix4().makeRotationY(f * 0.004);
-    const t = ramp(f, 588, 662);
+    const t = ramp(f, 562, 600);
     for (const p of DUST) {
       const grow = 1 + t * p.drift;
       const [x, y] = project(p.x * grow * 1.1, p.y * (1 + t * 0.2), p.z * grow, m);
@@ -504,28 +514,38 @@ function renderFrame(f) {
 
   return sharp(Buffer.from(svg), { density: 72 })
     .png({ compressionLevel: 7 })
-    .toFile(path.join(OUT, `_${String(f).padStart(5, "0")}.png`));
+    .toFile(file ?? path.join(OUT, `_${String(f).padStart(5, "0")}.png`));
 }
 
 async function main() {
+  const turntable = process.argv.includes("--turntable");
   const arg = process.argv.find((a) => a.startsWith("--frames="));
-  const frames = arg ? arg.slice(9).split(",").map(Number) : Array.from({ length: FRAMES }, (_, i) => i);
-  await fsp.mkdir(OUT, { recursive: true });
+  const out = turntable ? OUT_TURNTABLE : OUT;
+  // The turntable is the stone exactly as it stands on the last sequence frame, turned
+  // through evenly spaced angles. 360° itself is left out, so the loop repeats no frame.
+  const jobs = turntable
+    ? Array.from({ length: TURNTABLE }, (_, i) => ({
+        f: FRAMES - 1,
+        spin: (i / TURNTABLE) * Math.PI * 2,
+        file: path.join(OUT_TURNTABLE, `_${String(i).padStart(5, "0")}.png`),
+      }))
+    : (arg ? arg.slice(9).split(",").map(Number) : Array.from({ length: FRAMES }, (_, i) => i)).map((f) => ({ f }));
+  await fsp.mkdir(out, { recursive: true });
 
   const lanes = Math.max(2, Math.min(8, os.cpus().length));
   let cursor = 0;
   let done = 0;
   await Promise.all(
     Array.from({ length: lanes }, async () => {
-      while (cursor < frames.length) {
-        const f = frames[cursor++];
-        await renderFrame(f);
+      while (cursor < jobs.length) {
+        const { f, ...options } = jobs[cursor++];
+        await renderFrame(f, options);
         done++;
-        if (done % 25 === 0 || done === frames.length) process.stdout.write(`\r  rendered ${done}/${frames.length}`);
+        if (done % 25 === 0 || done === jobs.length) process.stdout.write(`\r  rendered ${done}/${jobs.length}`);
       }
     }),
   );
-  process.stdout.write(`\n  output: ${path.relative(ROOT, OUT)}\n`);
+  process.stdout.write(`\n  output: ${path.relative(ROOT, out)}\n`);
 }
 
 await main();

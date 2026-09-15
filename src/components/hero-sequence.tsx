@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
+import { LOOP_FROM, STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
 import { useViewportWidth } from "@/hooks/use-device-type";
 
 /** Frames fetched per batch. Small enough to start drawing early, large enough
@@ -15,6 +15,8 @@ const MOBILE_TIER_MAX_WIDTH = 900;
 const LANES = 8;
 /** Height of the sticky site header, in pixels. */
 const HEADER_H = 72;
+/** Playback rate of the finished stone's loop, matching the homepage rotation. */
+const LOOP_FPS = 30;
 
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -27,6 +29,11 @@ export function HeroSequence() {
   const currentIndexRef = useRef(0);
   const tierRef = useRef<SequenceTier>("scroll");
 
+  const loopImagesRef = useRef<(HTMLImageElement | null)[]>([]);
+  const loopReadyRef = useRef(false);
+  const loopIndexRef = useRef(0);
+  const inLoopRef = useRef(false);
+
   const [ready, setReady] = useState(false);
   const [stageId, setStageId] = useState(STAGES[0].id);
   const [started, setStarted] = useState(false);
@@ -36,10 +43,20 @@ export function HeroSequence() {
 
   /* ---------------------------------------------------------------- drawing */
 
-  const draw = useCallback((index: number) => {
+  const paint = useCallback((img: HTMLImageElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
 
+    const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+  }, []);
+
+  const draw = useCallback((index: number) => {
     // Fall back to the nearest frame already in memory, so scrubbing ahead of
     // the preloader holds the last good image instead of flashing empty.
     const images = imagesRef.current;
@@ -52,16 +69,20 @@ export function HeroSequence() {
     }
     if (!img) return;
 
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
-
-    const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    paint(img);
     drawnIndexRef.current = index;
-  }, []);
+  }, [paint]);
+
+  /** The loop frame under the playhead, or — until the loop has loaded — the last
+   *  scroll frame, which shows the same face-up stone as the loop's first frame. */
+  const drawLoop = useCallback(() => {
+    if (!loopReadyRef.current) {
+      draw(frameCount(tierRef.current) - 1);
+      return;
+    }
+    const img = loopImagesRef.current[loopIndexRef.current];
+    if (img) paint(img);
+  }, [draw, paint]);
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -75,9 +96,10 @@ export function HeroSequence() {
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
-      draw(drawnIndexRef.current >= 0 ? drawnIndexRef.current : 0);
+      if (inLoopRef.current) drawLoop();
+      else draw(drawnIndexRef.current >= 0 ? drawnIndexRef.current : 0);
     }
-  }, [draw]);
+  }, [draw, drawLoop]);
 
   /* -------------------------------------------------------------- preloading */
 
@@ -94,7 +116,11 @@ export function HeroSequence() {
         img.onload = () => {
           imagesRef.current[index] = img;
           // If the playhead is parked on (or past) this frame, show it now.
-          if (drawnIndexRef.current < 0 || currentIndexRef.current === index) {
+          const count = frameCount(tierRef.current);
+          if (inLoopRef.current) {
+            // The loop owns the canvas; only its stand-in frame needs painting.
+            if (!loopReadyRef.current && index === count - 1) draw(index);
+          } else if (drawnIndexRef.current < 0 || currentIndexRef.current === index) {
             draw(currentIndexRef.current);
             setReady(true);
           }
@@ -110,6 +136,37 @@ export function HeroSequence() {
     [draw],
   );
 
+  /** Fetches the finished stone's loop once, ahead of the visitor reaching it. */
+  const preloadLoop = useCallback(() => {
+    if (loopImagesRef.current.length) return;
+    const count = frameCount("rotate");
+    loopImagesRef.current = new Array(count).fill(null);
+    const queue = Array.from({ length: count }, (_, i) => i);
+    let settled = 0;
+
+    const lane = async () => {
+      while (queue.length) {
+        const i = queue.shift() as number;
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.decoding = "async";
+          const finish = () => {
+            // Play only once every frame has settled; a half-loaded loop reads as stutter.
+            if (++settled === count) loopReadyRef.current = true;
+            resolve();
+          };
+          img.onload = () => {
+            loopImagesRef.current[i] = img;
+            finish();
+          };
+          img.onerror = finish;
+          img.src = frameUrl("rotate", i);
+        });
+      }
+    };
+    for (let l = 0; l < LANES; l++) void lane();
+  }, []);
+
   /* ------------------------------------------------------------ the machine */
 
   /*
@@ -118,7 +175,8 @@ export function HeroSequence() {
     direct manipulation rather than autoplaying motion. It used to swap in a
     static poster under reduced motion — and since Windows Server, RDP sessions
     and many power-saving setups report reduced motion by default, visitors on
-    those machines saw one still image that never changed.
+    those machines saw one still image that never changed. The finished stone's
+    loop at the end runs regardless for the same reason, like the 3D viewer.
   */
   useEffect(() => {
     // Wait for the real width so a phone never starts loading the desktop tier.
@@ -141,6 +199,46 @@ export function HeroSequence() {
 
     let cancelled = false;
     let cleanupScroll: (() => void) | undefined;
+    inLoopRef.current = false;
+
+    // The finished stone turns on its own once the sequence reaches it. The loop
+    // stops whenever the hero is off screen or the tab is hidden.
+    let raf = 0;
+    let last = 0;
+    let carry = 0;
+    let onScreen = false;
+    const tick = (now: number) => {
+      raf = 0;
+      if (!inLoopRef.current || !onScreen || document.visibilityState !== "visible") return;
+      if (loopReadyRef.current && last) {
+        carry += now - last;
+        const step = 1000 / LOOP_FPS;
+        if (carry >= step) {
+          // Cap catch-up so a dropped burst of frames does not lurch the stone.
+          const advance = Math.min(Math.floor(carry / step), 3);
+          carry -= advance * step;
+          loopIndexRef.current = (loopIndexRef.current + advance) % loopImagesRef.current.length;
+          drawLoop();
+        }
+      }
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    const startLoop = () => {
+      if (raf) return;
+      last = 0;
+      carry = 0;
+      raf = requestAnimationFrame(tick);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") startLoop();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    const visibility = new IntersectionObserver((entries) => {
+      onScreen = entries[entries.length - 1].isIntersecting;
+      if (onScreen) startLoop();
+    });
+    visibility.observe(section);
 
     const preload = async () => {
       // First frame before anything else, so the canvas fills immediately.
@@ -206,9 +304,23 @@ export function HeroSequence() {
         onUpdate: (self) => {
           const index = Math.round(self.progress * (count - 1));
           currentIndexRef.current = index;
+          if (self.progress > 0.6) preloadLoop();
+
+          const inLoop = self.progress >= LOOP_FROM;
+          if (inLoop !== inLoopRef.current) {
+            inLoopRef.current = inLoop;
+            if (inLoop) {
+              // Arriving from above, the stone is face up — the loop's first angle.
+              loopIndexRef.current = 0;
+              drawLoop();
+              startLoop();
+            } else {
+              drawnIndexRef.current = -1;
+            }
+          }
           // Redraw only when the frame actually changes — scroll fires far more
           // often than the sequence advances.
-          if (index !== drawnIndexRef.current) draw(index);
+          if (!inLoop && index !== drawnIndexRef.current) draw(index);
 
           const stage = stageAt(self.progress);
           setStageId((prev) => (prev === stage.id ? prev : stage.id));
@@ -230,10 +342,13 @@ export function HeroSequence() {
     return () => {
       cancelled = true;
       observer.disconnect();
+      visibility.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (raf) cancelAnimationFrame(raf);
       ro.disconnect();
       cleanupScroll?.();
     };
-  }, [hydrated, draw, loadFrame, resizeCanvas]);
+  }, [hydrated, draw, drawLoop, loadFrame, preloadLoop, resizeCanvas]);
 
   /* ----------------------------------------------------------------- render */
 

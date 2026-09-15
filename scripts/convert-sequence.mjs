@@ -5,7 +5,7 @@
  *
  *   public/sequence/scroll/         00001.webp – 00700.webp   1600px  scroll-scrubbed hero
  *   public/sequence/scroll-mobile/  every 3rd scroll frame      900px  hero on narrow screens
- *   public/sequence/rotate/         00001.webp – 00NNN.webp     720px  looping 360° turn
+ *   public/sequence/rotate/         00001.webp – 00NNN.webp    1080px  looping 360° turn
  *
  * Inputs:
  *
@@ -38,7 +38,8 @@ const sharp = require("sharp");
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** SEQUENCE_SOURCE=wire-700 builds from the wireframe render instead of the photographic one. */
 const RAW_SCROLL = path.join(ROOT, "assets", "sequence", process.env.SEQUENCE_SOURCE || "raw-700");
-const RAW_ROTATE = path.join(ROOT, "assets", "sequence", "raw-360");
+/** ROTATE_SOURCE=wire-360 uses the wireframe turntable. */
+const RAW_ROTATE = path.join(ROOT, "assets", "sequence", process.env.ROTATE_SOURCE || "raw-360");
 const OUT_DIR = path.join(ROOT, "public", "sequence");
 const MANIFEST = path.join(ROOT, "src", "data", "sequence-manifest.json");
 
@@ -157,7 +158,7 @@ async function main() {
   let rotate = await usableFrames(RAW_ROTATE);
   let rotateSource;
   if (rotate?.length) {
-    rotateSource = "raw-360";
+    rotateSource = path.basename(RAW_ROTATE);
     console.log(`    ${rotate.length} usable frames`);
     if (rotate.length !== EXPECTED_ROTATE) {
       console.warn(`    WARNING: expected ${EXPECTED_ROTATE}, found ${rotate.length}`);
@@ -186,7 +187,8 @@ async function main() {
       900,
       72,
     ),
-    rotate: { ...(await writeTier("rotate", rotate, 720, 78)), source: rotateSource },
+    // 1080, not 720: the hero canvas also plays this loop, at up to ~1240 device pixels.
+    rotate: { ...(await writeTier("rotate", rotate, 1080, 78)), source: rotateSource },
   };
 
   const manifest = { generatedAt: new Date().toISOString(), tiers };

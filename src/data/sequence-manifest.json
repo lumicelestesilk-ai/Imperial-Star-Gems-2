@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T09:30:14.627Z",
+  "generatedAt": "2026-09-15T09:55:01.653Z",
   "tiers": {
     "scroll": {
       "frames": 700,
@@ -10,9 +10,9 @@
       "width": 900
     },
     "rotate": {
-      "frames": 138,
-      "width": 720,
-      "source": "stand-in: wire-700 frames 630-699, forward then back"
+      "frames": 333,
+      "width": 1080,
+      "source": "wire-360"
     }
   }
 }

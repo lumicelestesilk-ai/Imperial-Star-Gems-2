@@ -88,11 +88,10 @@ export const STAGES: Stage[] = [
     body: "Each facet is ground and polished to a set angle, checked, and returned to the wheel. Tolerances are measured in microns, because a fraction of a degree at the pavilion decides whether light comes back or passes through.",
     from: 0.6,
     to: 0.86,
-    // Sits a fraction past this stage's scroll range on purpose: it is the
-    // clearest frame of the fully faceted stone with polishing dust around it.
-    still: 0.866,
+    // The clearest frame of the fully faceted stone with polishing dust around it.
+    still: 0.835,
     stillAlt:
-      "The fully faceted stone seen edge on, with a cloud of polishing dust suspended around it.",
+      "The fully faceted stone, face up, with a cloud of polishing dust suspended around it.",
   },
   {
     id: "finish",
@@ -104,6 +103,13 @@ export const STAGES: Stage[] = [
     stillAlt: "The finished radiant-cut diamond, face up, fully polished.",
   },
 ];
+
+/**
+ * From here the hero stops following the scroll and plays the rotate tier as a
+ * continuous loop. The last scroll frame and the loop's first frame are the same
+ * face-up view, so the handover is seamless.
+ */
+export const LOOP_FROM = STAGES[STAGES.length - 1].from;
 
 export function stageAt(progress: number): Stage {
   return STAGES.find((s) => progress >= s.from && progress < s.to) ?? STAGES[STAGES.length - 1];
