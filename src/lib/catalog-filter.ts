@@ -116,6 +116,29 @@ export function caratFromSearch(cmin?: string | string[], cmax?: string | string
   return { min: num(cmin), max: num(cmax) };
 }
 
+/** `?color=D,E` from a page's searchParams, e.g. a colour-guide link into the catalogue. */
+export function colorsFromSearch(value?: string | string[]): Filters["colors"] {
+  const raw = (Array.isArray(value) ? value[0] : value) ?? "";
+  const allowed: readonly string[] = [...COLOR_GRADES, FANCY];
+  return raw.split(",").filter((v): v is Filters["colors"][number] => allowed.includes(v));
+}
+
+/** `?cut=Ideal,Excellent` from a page's searchParams, e.g. a cut-guide link into the catalogue. */
+export function cutsFromSearch(value?: string | string[]): Filters["cuts"] {
+  const raw = (Array.isArray(value) ? value[0] : value) ?? "";
+  return raw
+    .split(",")
+    .filter((v): v is Filters["cuts"][number] => (CUT_GRADES as readonly string[]).includes(v));
+}
+
+/** `?clarity=VS1,VS2` from a page's searchParams, e.g. a clarity-guide link into the catalogue. */
+export function claritiesFromSearch(value?: string | string[]): Filters["clarities"] {
+  const raw = (Array.isArray(value) ? value[0] : value) ?? "";
+  return raw
+    .split(",")
+    .filter((v): v is Filters["clarities"][number] => (CLARITY_GRADES as readonly string[]).includes(v));
+}
+
 /** One line for the sheet header, so a forwarded copy says what it was filtered to. */
 export function describeFilters(filters: Filters, sort: Sort, bounds: [number, number]): string {
   const parts: string[] = [];

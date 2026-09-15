@@ -18,6 +18,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...SHAPES.map((s) => ({ path: `/shapes/${s.slug}`, priority: 0.7 })),
     ...ALL_STONES.map((s) => ({ path: `/stones/${s.sku}`, priority: 0.5 })),
     { path: "/carat-guide", priority: 0.8 },
+    { path: "/color-guide", priority: 0.8 },
+    { path: "/cut-guide", priority: 0.8 },
+    { path: "/clarity-guide", priority: 0.8 },
     { path: "/craftsmanship", priority: 0.7 },
     {
       path: "/insights",

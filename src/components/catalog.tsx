@@ -32,6 +32,9 @@ export function Catalog({
   origin,
   initialShape,
   initialCarat,
+  initialColors,
+  initialCuts,
+  initialClarities,
   notice,
 }: {
   stones: Stone[];
@@ -39,6 +42,12 @@ export function Catalog({
   initialShape?: ShapeSlug;
   /** Opening carat range; clamped to the catalogue's bounds. Clear resets to the full range. */
   initialCarat?: { min?: number; max?: number };
+  /** Opening colour selection, e.g. from the colour guide. */
+  initialColors?: Filters["colors"];
+  /** Opening cut selection, e.g. from the cut guide. */
+  initialCuts?: Filters["cuts"];
+  /** Opening clarity selection, e.g. from the clarity guide. */
+  initialClarities?: Filters["clarities"];
   notice?: string;
 }) {
   const [min, max] = useMemo(() => caratBounds(stones), [stones]);
@@ -61,6 +70,9 @@ export function Catalog({
     const clamp = (v: number) => Math.min(max, Math.max(min, v));
     return {
       ...empty,
+      colors: initialColors ?? empty.colors,
+      cuts: initialCuts ?? empty.cuts,
+      clarities: initialClarities ?? empty.clarities,
       caratMin: clamp(initialCarat?.min ?? min),
       caratMax: clamp(initialCarat?.max ?? max),
     };

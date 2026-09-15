@@ -3,6 +3,8 @@ import { EnquiryForm } from "@/components/enquiry-form";
 import { ShapeGlyph } from "@/components/shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { SHAPES } from "@/lib/shapes";
+import { CUT_GRADES } from "@/lib/stones";
+import { FULL_SCALE } from "@/lib/clarity-grades";
 import { SALES_EMAIL, SALES_PHONE, generalWhatsappHref } from "@/lib/contact";
 
 export const metadata: Metadata = {
@@ -11,26 +13,63 @@ export const metadata: Metadata = {
     "Enquire about loose natural or lab-grown diamonds. Reach Imperial Star Gems by email, phone or WhatsApp, or send a specification and we will source to it.",
 };
 
-/** "?shape=oval&carat=1.50" from the carat guide becomes a pre-written message. */
-function specificationFor(shapeParam?: string | string[], caratParam?: string | string[]) {
-  const shape = SHAPES.find((s) => s.slug === (Array.isArray(shapeParam) ? shapeParam[0] : shapeParam));
-  const carat = Number.parseFloat((Array.isArray(caratParam) ? caratParam[0] : caratParam) ?? "");
-  if (!shape || !Number.isFinite(carat) || carat <= 0 || carat > 30) return undefined;
-  const label = `${shape.name} ${carat.toFixed(2)} ct`;
-  const article = /^[aeiou]/i.test(shape.name) ? "an" : "a";
+type SpecParams = {
+  shape?: string | string[];
+  carat?: string | string[];
+  color?: string | string[];
+  cut?: string | string[];
+  clarity?: string | string[];
+};
+
+/**
+ * "?shape=oval&carat=1.50&color=F" from the carat and colour guides becomes a
+ * pre-written message. Any subset works; anything unrecognised is ignored.
+ */
+function specificationFor(params: SpecParams) {
+  const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
+  const shape = SHAPES.find((s) => s.slug === first(params.shape));
+  const weight = Number.parseFloat(first(params.carat) ?? "");
+  const carat = Number.isFinite(weight) && weight > 0 && weight <= 30 ? weight : undefined;
+  const letter = first(params.color)?.trim().toUpperCase();
+  const color = letter && /^[D-Z]$/.test(letter) ? letter : undefined;
+  const cutParam = first(params.cut)?.trim().toLowerCase();
+  const cut = CUT_GRADES.find((g) => g.toLowerCase() === cutParam);
+  const clarityParam = first(params.clarity)?.trim().toUpperCase();
+  const clarity = FULL_SCALE.find((g) => g === clarityParam);
+  if (!shape && carat === undefined && !color && !cut && !clarity) return undefined;
+
+  const label = [
+    [shape?.name, carat !== undefined ? `${carat.toFixed(2)} ct` : undefined].filter(Boolean).join(" "),
+    color ? `${color} colour` : undefined,
+    cut ? `${cut} cut` : undefined,
+    clarity ? `${clarity} clarity` : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const subject = shape
+    ? `${/^[aeiou]/i.test(shape.name) ? "an" : "a"} ${shape.name.toLowerCase()} diamond`
+    : "a diamond";
+  const detail = [
+    carat !== undefined ? `about ${carat.toFixed(2)} ct` : "",
+    color ? `${color} colour` : "",
+    cut ? `${cut} cut` : "",
+    clarity ? `${clarity} clarity` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return {
     label,
-    message: `Hi, I'm looking for ${article} ${shape.name.toLowerCase()} diamond of about ${carat.toFixed(2)} ct. Please share what you have available, with reports.`,
+    message: `Hi, I'm looking for ${subject}${detail ? `, ${detail}` : ""}. Please share what you have available, with reports.`,
   };
 }
 
 export default async function ContactPage({
   searchParams,
 }: {
-  searchParams: Promise<{ shape?: string | string[]; carat?: string | string[] }>;
+  searchParams: Promise<SpecParams>;
 }) {
-  const { shape, carat } = await searchParams;
-  const specification = specificationFor(shape, carat);
+  const specification = specificationFor(await searchParams);
 
   return (
     <>

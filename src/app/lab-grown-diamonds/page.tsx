@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Catalog } from "@/components/catalog";
-import { caratFromSearch } from "@/lib/catalog-filter";
+import {
+  caratFromSearch,
+  claritiesFromSearch,
+  colorsFromSearch,
+  cutsFromSearch,
+} from "@/lib/catalog-filter";
 import { INVENTORY_NOTICE, LAB_STONES } from "@/lib/stones";
 import { SHAPES, type ShapeSlug } from "@/lib/shapes";
 
@@ -41,9 +46,12 @@ export default async function LabGrownDiamondsPage({
     shape?: string | string[];
     cmin?: string | string[];
     cmax?: string | string[];
+    color?: string | string[];
+    cut?: string | string[];
+    clarity?: string | string[];
   }>;
 }) {
-  const { shape, cmin, cmax } = await searchParams;
+  const { shape, cmin, cmax, color, cut, clarity } = await searchParams;
 
   return (
     <>
@@ -81,6 +89,9 @@ export default async function LabGrownDiamondsPage({
           origin="lab"
           initialShape={parseShape(shape)}
           initialCarat={caratFromSearch(cmin, cmax)}
+          initialColors={colorsFromSearch(color)}
+          initialCuts={cutsFromSearch(cut)}
+          initialClarities={claritiesFromSearch(clarity)}
           notice={INVENTORY_NOTICE}
         />
       </section>

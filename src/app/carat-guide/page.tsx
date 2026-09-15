@@ -397,6 +397,10 @@ export default function CaratGuidePage() {
               <Link href="/craftsmanship" className="underline underline-offset-4 hover:text-ink">
                 How to read a grading report
               </Link>
+              <span aria-hidden> · </span>
+              <Link href="/color-guide" className="underline underline-offset-4 hover:text-ink">
+                Diamond colour guide
+              </Link>
             </p>
           </div>
 
@@ -424,6 +428,12 @@ export default function CaratGuidePage() {
               The deeper stone also returns less light, so it tends to look the smaller of the
               two.
             </p>
+            <Link
+              href="/cut-guide#scale"
+              className="mt-5 inline-block text-[14px] underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+            >
+              How proportions control light, in the cut guide
+            </Link>
           </aside>
         </div>
       </section>
