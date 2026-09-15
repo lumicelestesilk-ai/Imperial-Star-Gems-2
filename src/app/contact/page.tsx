@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { EnquiryForm } from "@/components/enquiry-form";
 import { ShapeGlyph } from "@/components/shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
+import { SHAPES } from "@/lib/shapes";
 import { SALES_EMAIL, SALES_PHONE, generalWhatsappHref } from "@/lib/contact";
 
 export const metadata: Metadata = {
@@ -10,7 +11,27 @@ export const metadata: Metadata = {
     "Enquire about loose natural or lab-grown diamonds. Reach Imperial Star Gems by email, phone or WhatsApp, or send a specification and we will source to it.",
 };
 
-export default function ContactPage() {
+/** "?shape=oval&carat=1.50" from the carat guide becomes a pre-written message. */
+function specificationFor(shapeParam?: string | string[], caratParam?: string | string[]) {
+  const shape = SHAPES.find((s) => s.slug === (Array.isArray(shapeParam) ? shapeParam[0] : shapeParam));
+  const carat = Number.parseFloat((Array.isArray(caratParam) ? caratParam[0] : caratParam) ?? "");
+  if (!shape || !Number.isFinite(carat) || carat <= 0 || carat > 30) return undefined;
+  const label = `${shape.name} ${carat.toFixed(2)} ct`;
+  const article = /^[aeiou]/i.test(shape.name) ? "an" : "a";
+  return {
+    label,
+    message: `Hi, I'm looking for ${article} ${shape.name.toLowerCase()} diamond of about ${carat.toFixed(2)} ct. Please share what you have available, with reports.`,
+  };
+}
+
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shape?: string | string[]; carat?: string | string[] }>;
+}) {
+  const { shape, carat } = await searchParams;
+  const specification = specificationFor(shape, carat);
+
   return (
     <>
       <section className="border-b border-hairline">
@@ -28,13 +49,15 @@ export default function ContactPage() {
 
       <section className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 sm:py-20">
         <div className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-20">
-          <div>
-            <h2 className="font-display text-[clamp(1.7rem,3.4vw,2.4rem)]">Send an enquiry</h2>
+          <div id="enquiry" className="scroll-mt-[96px]">
+            <h2 className="font-display text-[clamp(1.7rem,3.4vw,2.4rem)]">
+              {specification ? `Enquire about ${specification.label}` : "Send an enquiry"}
+            </h2>
             <p className="measure mt-3 text-[15px] text-ink-muted">
               We answer every enquiry ourselves, usually within one working day.
             </p>
             <div className="mt-8 max-w-[640px]">
-              <EnquiryForm />
+              <EnquiryForm defaultMessage={specification?.message} />
             </div>
           </div>
 

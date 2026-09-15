@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Catalog } from "@/components/catalog";
+import { caratFromSearch } from "@/lib/catalog-filter";
 import { INVENTORY_NOTICE, NATURAL_STONES } from "@/lib/stones";
 import { SHAPES, type ShapeSlug } from "@/lib/shapes";
 
@@ -17,9 +18,13 @@ function parseShape(value: string | string[] | undefined): ShapeSlug | undefined
 export default async function NaturalDiamondsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ shape?: string | string[] }>;
+  searchParams: Promise<{
+    shape?: string | string[];
+    cmin?: string | string[];
+    cmax?: string | string[];
+  }>;
 }) {
-  const { shape } = await searchParams;
+  const { shape, cmin, cmax } = await searchParams;
 
   return (
     <>
@@ -39,7 +44,9 @@ export default async function NaturalDiamondsPage({
       <section className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 sm:py-16">
         <Catalog
           stones={NATURAL_STONES}
+          origin="natural"
           initialShape={parseShape(shape)}
+          initialCarat={caratFromSearch(cmin, cmax)}
           notice={INVENTORY_NOTICE}
         />
       </section>

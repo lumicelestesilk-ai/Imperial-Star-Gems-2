@@ -10,12 +10,14 @@ const COLUMNS = [
       { href: "/natural-diamonds", label: "Natural diamonds" },
       { href: "/lab-grown-diamonds", label: "Lab-grown diamonds" },
       { href: "/shapes", label: "Shapes" },
+      { href: "/carat-guide", label: "Carat guide" },
     ],
   },
   {
     heading: "House",
     links: [
       { href: "/craftsmanship", label: "Craftsmanship" },
+      { href: "/insights", label: "Market insights" },
       { href: "/contact", label: "Contact" },
     ],
   },

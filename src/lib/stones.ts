@@ -28,12 +28,13 @@ export type Stone = {
 };
 
 export const COLOR_GRADES = ["D", "E", "F", "G", "H", "I", "J"] as const;
-export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2"] as const;
-/** "Ideal" is a round-brilliant-only grade, real stock only — the generator below never assigns it. */
-export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Ideal"] as const;
+/** "I1" is a real-stock-only grade — the generator below never assigns it. */
+export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1"] as const;
+/** "Ideal" and "Fair" are real-stock-only grades — the generator below never assigns them. */
+export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Fair", "Ideal"] as const;
 export const LABS = ["GIA", "IGI"] as const;
-/** "Very Slight" and "Slight" are real-stock-only — the generator below never assigns them. */
-export const FLUORESCENCE = ["None", "Faint", "Very Slight", "Slight", "Medium"] as const;
+/** "Very Slight", "Slight" and "Strong" are real-stock-only — the generator below never assigns them. */
+export const FLUORESCENCE = ["None", "Faint", "Very Slight", "Slight", "Medium", "Strong"] as const;
 
 export type ColorGrade = (typeof COLOR_GRADES)[number];
 export type ClarityGrade = (typeof CLARITY_GRADES)[number];
@@ -50,8 +51,8 @@ export function isColorGrade(color: ColorGrade | FancyColor): color is ColorGrad
 
 /**
  * Shown once at the top of each catalogue. The stones below are a representative
- * sample, not live stock — delete this constant and its two usages on the day a
- * real inventory feed is connected.
+ * sample, not live stock — delete this constant and its usages (both catalogue
+ * pages and both PDF spec sheets) on the day a real inventory feed is connected.
  */
 export const INVENTORY_NOTICE =
   "A representative selection. Current availability is confirmed on enquiry.";

@@ -13,44 +13,32 @@ import {
   addedKey,
   caratBounds,
   countByShape,
-  isColorGrade,
-  type ClarityGrade,
-  type ColorGrade,
-  type CutGrade,
-  type Lab,
+  type Origin,
   type Stone,
 } from "@/lib/stones";
+import {
+  FANCY,
+  SORTS,
+  filterStones,
+  filtersToParams,
+  type Filters,
+  type Sort,
+} from "@/lib/catalog-filter";
 
 const PAGE = 12;
 
-const FANCY = "Fancy";
-
-const SORTS = {
-  recommended: "Recommended",
-  recent: "Recently added",
-  caratDesc: "Carat: high to low",
-  caratAsc: "Carat: low to high",
-} as const;
-
-type Sort = keyof typeof SORTS;
-
-type Filters = {
-  shapes: ShapeSlug[];
-  colors: (ColorGrade | typeof FANCY)[];
-  clarities: ClarityGrade[];
-  cuts: CutGrade[];
-  labs: Lab[];
-  caratMin: number;
-  caratMax: number;
-};
-
 export function Catalog({
   stones,
+  origin,
   initialShape,
+  initialCarat,
   notice,
 }: {
   stones: Stone[];
+  origin: Origin;
   initialShape?: ShapeSlug;
+  /** Opening carat range; clamped to the catalogue's bounds. Clear resets to the full range. */
+  initialCarat?: { min?: number; max?: number };
   notice?: string;
 }) {
   const [min, max] = useMemo(() => caratBounds(stones), [stones]);
@@ -69,7 +57,14 @@ export function Catalog({
     [initialShape, min, max],
   );
 
-  const [filters, setFilters] = useState<Filters>(empty);
+  const [filters, setFilters] = useState<Filters>(() => {
+    const clamp = (v: number) => Math.min(max, Math.max(min, v));
+    return {
+      ...empty,
+      caratMin: clamp(initialCarat?.min ?? min),
+      caratMax: clamp(initialCarat?.max ?? max),
+    };
+  });
   const [visible, setVisible] = useState(PAGE);
   const [sort, setSort] = useState<Sort>("recommended");
   const hasDates = useMemo(() => stones.some((s) => addedKey(s) > 0), [stones]);
@@ -94,25 +89,11 @@ export function Catalog({
     setVisible(PAGE);
   }
 
-  const results = useMemo(() => {
-    const matched = stones.filter((s) => {
-      if (filters.shapes.length && !filters.shapes.includes(s.shape)) return false;
-      if (
-        filters.colors.length &&
-        !(isColorGrade(s.color) ? filters.colors.includes(s.color) : filters.colors.includes(FANCY))
-      )
-        return false;
-      if (filters.clarities.length && !filters.clarities.includes(s.clarity)) return false;
-      if (filters.cuts.length && (!s.cut || !filters.cuts.includes(s.cut))) return false;
-      if (filters.labs.length && !filters.labs.includes(s.lab)) return false;
-      if (s.carat < filters.caratMin || s.carat > filters.caratMax) return false;
-      return true;
-    });
-    if (sort === "recent") return matched.sort((a, b) => addedKey(b) - addedKey(a));
-    if (sort === "caratDesc") return matched.sort((a, b) => b.carat - a.carat);
-    if (sort === "caratAsc") return matched.sort((a, b) => a.carat - b.carat);
-    return matched;
-  }, [stones, filters, sort]);
+  const results = useMemo(() => filterStones(stones, filters, sort), [stones, filters, sort]);
+
+  // The sheet covers every matching stone, not just the page shown so far.
+  const query = filtersToParams(filters, sort, [min, max]).toString();
+  const sheetHref = `/spec-sheet/${origin === "natural" ? "natural" : "lab-grown"}${query ? `?${query}` : ""}`;
 
   const activeCount =
     filters.shapes.length +
@@ -264,6 +245,15 @@ export function Catalog({
                 ))}
             </select>
           </label>
+          {results.length > 0 ? (
+            <a
+              href={sheetHref}
+              download
+              className="text-[13px] text-ink-muted underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+            >
+              Download spec sheet (PDF)
+            </a>
+          ) : null}
           {notice ? <p className="w-full text-[13px] text-ink-muted">{notice}</p> : null}
         </div>
 

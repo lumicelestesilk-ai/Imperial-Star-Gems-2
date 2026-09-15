@@ -13,6 +13,7 @@ const NAV = [
   { href: "/lab-grown-diamonds", label: "Lab-Grown" },
   { href: "/shapes", label: "Shapes" },
   { href: "/craftsmanship", label: "Craftsmanship" },
+  { href: "/insights", label: "Insights" },
   { href: "/contact", label: "Contact" },
 ];
 

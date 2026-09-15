@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShapeGlyph } from "@/components/shape-glyph";
+import { CaratSizeChart } from "@/components/carat-size-chart";
 import { SHAPES, type Shape } from "@/lib/shapes";
 import { LAB_STONES, NATURAL_STONES, countByShape } from "@/lib/stones";
 
@@ -65,6 +66,25 @@ export default async function ShapePage({ params }: Props) {
             What to look for
           </h2>
           <p className="measure mt-4 text-ink-muted">{shape.character}</p>
+
+          <h2 className="mt-12 font-display text-[clamp(1.7rem,3.4vw,2.4rem)]">
+            {shape.name} size by carat weight
+          </h2>
+          <p className="measure mt-4 text-ink-muted">
+            Approximate face-up size at a typical {shape.name.toLowerCase()} ratio and depth,
+            drawn to scale. Select a weight to see natural stock in that band.
+          </p>
+          <div className="mt-6">
+            <CaratSizeChart shapes={[shape.slug]} rowHeadings={false} />
+          </div>
+          <p className="mt-4 text-[14px] text-ink-muted">
+            <Link
+              href="/carat-guide"
+              className="underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+            >
+              Diamond carat guide: every shape, price milestones and choosing a weight
+            </Link>
+          </p>
         </div>
 
         <aside className="lg:sticky lg:top-[96px] lg:h-fit">

@@ -10,6 +10,9 @@ type Props = {
   /** Hairline weight in CSS pixels, independent of rendered size. */
   strokeWidth?: number;
   title?: string;
+  /** Crop to part of the 100×100 drawing — with `preserveAspectRatio="none"`, draws to true proportions. */
+  viewBox?: string;
+  preserveAspectRatio?: string;
 };
 
 /**
@@ -27,10 +30,13 @@ export function ShapeGlyph({
   className,
   strokeWidth = 1,
   title,
+  viewBox = "0 0 100 100",
+  preserveAspectRatio,
 }: Props) {
   return (
     <svg
-      viewBox="0 0 100 100"
+      viewBox={viewBox}
+      preserveAspectRatio={preserveAspectRatio}
       className={[
         frozen ? "glyph-static" : "",
         !frozen && lit ? "glyph-is-lit" : "",

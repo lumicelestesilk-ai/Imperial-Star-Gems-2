@@ -196,8 +196,13 @@
     }
   }
 
-  /* Static wireframe: outline only, facets always drawn, no interaction. */
+  /*
+    Static wireframe: outline only, facets always drawn, no interaction.
+    No dash pattern either — pathLength-based dashes break into gaps when a
+    glyph is stretched non-uniformly (the carat size chart does this).
+  */
   .glyph-static .glyph-facet {
+    stroke-dasharray: none;
     stroke-dashoffset: 0;
     opacity: 1;
     transition: none;

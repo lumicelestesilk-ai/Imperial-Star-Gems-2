@@ -5,8 +5,7 @@ import { StoneModel } from "@/components/stone-model";
 import { StoneEnquireButton } from "@/components/stone-enquire-button";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
 import { ALL_STONES, findStone, type Stone } from "@/lib/stones";
-
-const BASE = "https://www.imperialstargems.com";
+import { SITE_URL as BASE, originWord, stoneSpecs } from "@/lib/stone-specs";
 
 type Props = { params: Promise<{ sku: string }> };
 
@@ -14,10 +13,6 @@ function stoneFor(sku: string): Stone {
   const stone = findStone(sku);
   if (!stone) notFound();
   return stone;
-}
-
-function originWord(stone: Stone) {
-  return stone.origin === "natural" ? "natural" : "lab-grown";
 }
 
 function titleFor(stone: Stone) {
@@ -42,21 +37,7 @@ export default async function StonePage({ params }: Props) {
   const shape = SHAPE_BY_SLUG[stone.shape];
   const catalogue = stone.origin === "natural" ? "/natural-diamonds" : "/lab-grown-diamonds";
 
-  const specs: [string, string][] = [
-    ["Shape", stone.shapeName],
-    ["Carat", stone.carat.toFixed(2)],
-    ["Colour", stone.color],
-    ["Clarity", stone.clarity],
-    ...(stone.cut ? ([["Cut", stone.cut]] as [string, string][]) : []),
-    ["Polish", stone.polish],
-    ["Symmetry", stone.symmetry],
-    ["Fluorescence", stone.fluorescence],
-    ["Table", `${stone.tablePercent}%`],
-    ["Depth", `${stone.depthPercent}%`],
-    ["Measurements", stone.measurements],
-    ["Origin", stone.origin === "natural" ? "Natural" : "Lab-grown"],
-    ["Certificate", `${stone.lab}, report number on enquiry`],
-  ];
+  const specs = stoneSpecs(stone);
 
   // No Offer: pricing is enquiry-only by design, and an Offer without a price is invalid.
   const jsonLd = {
@@ -121,6 +102,13 @@ export default async function StonePage({ params }: Props) {
             <p className="mt-3 text-[13px] text-ink-muted">
               Price, availability and the full grading report are confirmed on enquiry.
             </p>
+            <a
+              href={`/stones/${encodeURIComponent(stone.sku)}/spec-sheet`}
+              download
+              className="mt-2 inline-block text-[13px] text-ink-muted underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+            >
+              Download spec sheet (PDF)
+            </a>
           </div>
 
           <p className="mt-10 border-t border-hairline pt-6 text-[14px] text-ink-muted">
