@@ -11,7 +11,8 @@ export type Stone = {
   shapeCode: string;
   origin: Origin;
   carat: number;
-  color: ColorGrade;
+  /** A D–J grade, or a fancy-colour description ("Fancy Vivid Blue") — no fixed scale covers both. */
+  color: ColorGrade | FancyColor;
   clarity: ClarityGrade;
   /** Round brilliants only — IGI/GIA don't issue an overall cut grade for fancy shapes. */
   cut?: CutGrade;
@@ -31,13 +32,21 @@ export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", 
 /** "Ideal" is a round-brilliant-only grade, real stock only — the generator below never assigns it. */
 export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Ideal"] as const;
 export const LABS = ["GIA", "IGI"] as const;
-export const FLUORESCENCE = ["None", "Faint", "Medium"] as const;
+/** "Very Slight" and "Slight" are real-stock-only — the generator below never assigns them. */
+export const FLUORESCENCE = ["None", "Faint", "Very Slight", "Slight", "Medium"] as const;
 
 export type ColorGrade = (typeof COLOR_GRADES)[number];
 export type ClarityGrade = (typeof CLARITY_GRADES)[number];
 export type CutGrade = (typeof CUT_GRADES)[number];
 export type Lab = (typeof LABS)[number];
 export type Fluorescence = (typeof FLUORESCENCE)[number];
+/** Free-form, like `shapeName` — fancy-colour wording ("Fancy Intense Yellowish Brown")
+ *  isn't a closed scale the way D–J or a clarity grade is. */
+export type FancyColor = string;
+
+export function isColorGrade(color: ColorGrade | FancyColor): color is ColorGrade {
+  return (COLOR_GRADES as readonly string[]).includes(color);
+}
 
 /**
  * Shown once at the top of each catalogue. The stones below are a representative
@@ -117,7 +126,7 @@ function buildStone(shape: Shape, origin: Origin, seed: number): Stone {
   const fluorescence = weighted(
     rand,
     FLUORESCENCE,
-    origin === "lab" ? [18, 3, 1] : [12, 5, 3],
+    origin === "lab" ? [18, 3, 0, 0, 1] : [12, 5, 0, 0, 3],
   );
   // Grown goods are graded by IGI more often than by GIA; natural skews the
   // other way.
@@ -194,8 +203,9 @@ export const FEATURED_STONES: Stone[] = (() => {
     .map(([shape, origin]) => {
       const pool = origin === "natural" ? NATURAL_STONES : LAB_STONES;
       const pick =
-        pool.find((s) => s.shape === shape && s.carat >= 1 && s.color <= "G") ??
-        pool.find((s) => s.shape === shape);
+        pool.find(
+          (s) => s.shape === shape && s.carat >= 1 && isColorGrade(s.color) && s.color <= "G",
+        ) ?? pool.find((s) => s.shape === shape);
       return pick ? { ...pick, featured: true } : undefined;
     })
     .filter((s): s is Stone => Boolean(s));

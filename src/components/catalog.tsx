@@ -12,6 +12,7 @@ import {
   LABS,
   caratBounds,
   countByShape,
+  isColorGrade,
   type ClarityGrade,
   type ColorGrade,
   type CutGrade,
@@ -82,7 +83,8 @@ export function Catalog({
   const results = useMemo(() => {
     return stones.filter((s) => {
       if (filters.shapes.length && !filters.shapes.includes(s.shape)) return false;
-      if (filters.colors.length && !filters.colors.includes(s.color)) return false;
+      if (filters.colors.length && (!isColorGrade(s.color) || !filters.colors.includes(s.color)))
+        return false;
       if (filters.clarities.length && !filters.clarities.includes(s.clarity)) return false;
       if (filters.cuts.length && (!s.cut || !filters.cuts.includes(s.cut))) return false;
       if (filters.labs.length && !filters.labs.includes(s.lab)) return false;
