@@ -238,6 +238,7 @@ export function HeroSequence() {
   /* ----------------------------------------------------------------- render */
 
   const activeStage = STAGES.find((s) => s.id === stageId) ?? STAGES[0];
+  const stageNumber = STAGES.indexOf(activeStage) + 1;
 
   return (
     <section ref={sectionRef} className="relative border-b border-hairline" aria-labelledby="hero-heading">
@@ -265,7 +266,7 @@ export function HeroSequence() {
                 ref={canvasRef}
                 className="h-full w-full"
                 role="img"
-                aria-label="A rough diamond crystal being planned, sawn, faceted and polished into a finished radiant-cut stone."
+                aria-label={`Diamond cutting sequence, stage ${stageNumber} of ${STAGES.length}, ${activeStage.title}: ${activeStage.stillAlt}`}
               />
               {!ready ? (
                 <div

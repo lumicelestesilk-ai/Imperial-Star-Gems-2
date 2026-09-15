@@ -36,7 +36,8 @@ const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const RAW_SCROLL = path.join(ROOT, "assets", "sequence", "raw-700");
+/** SEQUENCE_SOURCE=wire-700 builds from the wireframe render instead of the photographic one. */
+const RAW_SCROLL = path.join(ROOT, "assets", "sequence", process.env.SEQUENCE_SOURCE || "raw-700");
 const RAW_ROTATE = path.join(ROOT, "assets", "sequence", "raw-360");
 const OUT_DIR = path.join(ROOT, "public", "sequence");
 const MANIFEST = path.join(ROOT, "src", "data", "sequence-manifest.json");
@@ -167,7 +168,7 @@ async function main() {
     const forward = scroll.slice(STANDIN_FROM);
     const back = forward.slice(1, -1).reverse();
     rotate = [...forward, ...back];
-    rotateSource = `stand-in: raw-700 frames ${STANDIN_FROM}-${scroll.length - 1}, forward then back`;
+    rotateSource = `stand-in: ${path.basename(RAW_SCROLL)} frames ${STANDIN_FROM}-${scroll.length - 1}, forward then back`;
     console.log(`    not found — using ${rotateSource} (${rotate.length} frames)`);
   }
 

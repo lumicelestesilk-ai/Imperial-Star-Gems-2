@@ -38,9 +38,46 @@ const CERTIFICATION = [
   },
 ];
 
+const FAQ = [
+  {
+    question: "Do natural and lab-grown diamonds hold their value the same way?",
+    answer:
+      "No. Neither should be bought as a guaranteed store of value — a stone bought at retail usually resells for less than was paid. Natural diamonds have an established secondary market with trade buyers who will make an offer, typically well below retail. Production costs for grown diamonds have fallen steadily, retail prices have followed, and the resale market for them is thin. Buy a grown stone for what it is to wear rather than for what it might fetch later.",
+  },
+  {
+    question: "How does GIA grading differ from IGI grading?",
+    answer:
+      "Both are independent laboratories working to the same colour, clarity and carat scales. GIA, a non-profit founded in 1931, developed the grading system most of the trade uses and is the usual reference for natural stones. IGI, founded in Antwerp in 1975, grades a large share of the world's lab-grown diamonds. Wording differs in places — on round brilliants IGI may issue an \"Ideal\" cut grade, while GIA's highest is \"Excellent\" — and relative strictness is debated in the trade. For any single stone, the full report and the stone itself tell you more than the name at the top.",
+  },
+  {
+    question: "What is the difference between cut, polish and symmetry?",
+    answer:
+      "Cut is an overall grade of how the stone's proportions — table size, crown and pavilion angles, depth — work together to return light, and most laboratories issue it only for round brilliants. Polish describes the surface finish of the facets: fine polishing lines, burn marks or nicks. Symmetry describes how precisely the facets are shaped, aligned and placed relative to one another and to the outline. Fancy shapes carry polish and symmetry grades but no cut grade, so for them the proportion figures and seeing the stone matter more.",
+  },
+  {
+    question: "What does fluorescence on a report mean?",
+    answer:
+      "Some diamonds glow, usually blue, under ultraviolet light. Reports grade the strength of that glow from none to very strong, though the exact wording varies between laboratories. In the great majority of stones it has no visible effect in normal light; in a small number with strong fluorescence the stone can look slightly hazy. It is worth judging on the stone itself rather than ruling out a grade on paper.",
+  },
+];
+
 export default function CraftsmanshipPage() {
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ.map(({ question, answer }) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
+      />
       <section className="border-b border-hairline">
         <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="max-w-[920px] font-display text-[clamp(2.4rem,5.6vw,4.2rem)]">
@@ -105,6 +142,33 @@ export default function CraftsmanshipPage() {
         items={CERTIFICATION}
         tone="porcelain"
       />
+
+      <section className="border-t border-hairline">
+        <div className="mx-auto grid max-w-[1440px] gap-10 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
+          <div className="max-w-[520px]">
+            <h2 className="font-display text-[clamp(2rem,4.4vw,3.2rem)]">Frequently asked</h2>
+            <p className="measure mt-4 text-ink-muted">
+              The questions buyers ask most often before committing to a stone.
+            </p>
+          </div>
+          <div className="border-t border-hairline">
+            {FAQ.map(({ question, answer }) => (
+              <details key={question} className="group border-b border-hairline">
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-6 py-6 font-display text-[22px] leading-snug [&::-webkit-details-marker]:hidden">
+                  {question}
+                  <span
+                    aria-hidden
+                    className="mt-1 text-[20px] leading-none text-ink-muted transition-transform duration-200 group-open:rotate-45"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="measure pb-6 text-[15px] text-ink-muted">{answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="border-t border-hairline bg-panel">
         <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 sm:py-24">

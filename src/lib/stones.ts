@@ -226,6 +226,24 @@ export function countByShape(stones: Stone[]): Record<string, number> {
   }, {});
 }
 
+/**
+ * Sortable intake key from a supplier SKU — "TP-070926-3399" is 7 Sep 2026, serial 3399.
+ * Generated stock carries no date and returns 0, so it sorts after dated stock.
+ */
+export function addedKey(stone: Stone): number {
+  const short = /^TP-(\d{2})(\d{2})(\d{2})-+(\d+)/.exec(stone.sku);
+  if (short) {
+    const [, dd, mm, yy, serial] = short;
+    return Number(`20${yy}${mm}${dd}`) * 1e5 + Number(serial);
+  }
+  const long = /^TP-(\d{2})(\d{2})(\d{4})-+(\d+)/.exec(stone.sku);
+  if (long) {
+    const [, dd, mm, yyyy, serial] = long;
+    return Number(`${yyyy}${mm}${dd}`) * 1e5 + Number(serial);
+  }
+  return 0;
+}
+
 /** Carat bounds of a set, rounded outwards to clean slider stops. */
 export function caratBounds(stones: Stone[]): [number, number] {
   const values = stones.map((s) => s.carat);

@@ -76,7 +76,7 @@ export function DiamondRotation({ label, className }: { label: string; className
       const slider = sliderRef.current;
       if (slider) {
         slider.setAttribute("aria-valuenow", String(index + 1));
-        slider.setAttribute("aria-valuetext", `Frame ${index + 1} of ${count}`);
+        slider.setAttribute("aria-valuetext", `Turned ${Math.round((index / count) * 360)} degrees`);
       }
     },
     [count],
@@ -289,7 +289,7 @@ export function DiamondRotation({ label, className }: { label: string; className
         // React never rewrites them, and draw() keeps the live DOM attributes
         // in step with the frame on screen.
         aria-valuenow={1}
-        aria-valuetext={`Frame 1 of ${count}`}
+        aria-valuetext="Turned 0 degrees"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

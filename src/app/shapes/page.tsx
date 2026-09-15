@@ -55,9 +55,17 @@ export default function ShapesPage() {
                       {String(i + 1).padStart(2, "0")}
                     </p>
                     <h2 className="mt-2 font-display text-[clamp(2rem,4vw,3rem)] leading-none">
-                      {shape.name}
+                      <Link href={`/shapes/${shape.slug}`} className="hover:underline hover:underline-offset-8">
+                        {shape.name}
+                      </Link>
                     </h2>
                     <p className="measure mt-4 text-ink-muted">{shape.note}</p>
+                    <Link
+                      href={`/shapes/${shape.slug}`}
+                      className="mt-3 inline-block text-[14px] text-ink-muted underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+                    >
+                      What to look for in a {shape.name.toLowerCase()}
+                    </Link>
 
                     <dl className="mt-7 grid max-w-[520px] grid-cols-2 gap-x-6 gap-y-4 border-t border-hairline pt-5 sm:grid-cols-3">
                       <div>

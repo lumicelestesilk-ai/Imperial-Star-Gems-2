@@ -10,6 +10,7 @@ import {
   COLOR_GRADES,
   CUT_GRADES,
   LABS,
+  addedKey,
   caratBounds,
   countByShape,
   isColorGrade,
@@ -23,6 +24,15 @@ import {
 const PAGE = 12;
 
 const FANCY = "Fancy";
+
+const SORTS = {
+  recommended: "Recommended",
+  recent: "Recently added",
+  caratDesc: "Carat: high to low",
+  caratAsc: "Carat: low to high",
+} as const;
+
+type Sort = keyof typeof SORTS;
 
 type Filters = {
   shapes: ShapeSlug[];
@@ -61,6 +71,8 @@ export function Catalog({
 
   const [filters, setFilters] = useState<Filters>(empty);
   const [visible, setVisible] = useState(PAGE);
+  const [sort, setSort] = useState<Sort>("recommended");
+  const hasDates = useMemo(() => stones.some((s) => addedKey(s) > 0), [stones]);
 
   function toggle<K extends "shapes" | "colors" | "clarities" | "cuts" | "labs">(
     key: K,
@@ -83,7 +95,7 @@ export function Catalog({
   }
 
   const results = useMemo(() => {
-    return stones.filter((s) => {
+    const matched = stones.filter((s) => {
       if (filters.shapes.length && !filters.shapes.includes(s.shape)) return false;
       if (
         filters.colors.length &&
@@ -96,7 +108,11 @@ export function Catalog({
       if (s.carat < filters.caratMin || s.carat > filters.caratMax) return false;
       return true;
     });
-  }, [stones, filters]);
+    if (sort === "recent") return matched.sort((a, b) => addedKey(b) - addedKey(a));
+    if (sort === "caratDesc") return matched.sort((a, b) => b.carat - a.carat);
+    if (sort === "caratAsc") return matched.sort((a, b) => a.carat - b.carat);
+    return matched;
+  }, [stones, filters, sort]);
 
   const activeCount =
     filters.shapes.length +
@@ -108,7 +124,7 @@ export function Catalog({
 
   // Re-keying the grid on the filter signature replays the entry transition,
   // which is what makes a filter change feel like it landed.
-  const signature = JSON.stringify(filters);
+  const signature = JSON.stringify([filters, sort]);
 
   return (
     <div className="grid gap-10 lg:grid-cols-[280px_1fr] lg:gap-12">
@@ -229,7 +245,26 @@ export function Catalog({
           <p aria-live="polite" className="text-[15px]">
             {results.length} {results.length === 1 ? "stone" : "stones"}
           </p>
-          {notice ? <p className="text-[13px] text-ink-muted">{notice}</p> : null}
+          <label className="flex items-center gap-2 text-[13px] text-ink-muted">
+            Sort
+            <select
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as Sort);
+                setVisible(PAGE);
+              }}
+              className="rounded-[12px] border border-hairline bg-porcelain px-3 py-2 text-[15px] text-ink transition-colors duration-200 focus:border-ink"
+            >
+              {(Object.keys(SORTS) as Sort[])
+                .filter((key) => key !== "recent" || hasDates)
+                .map((key) => (
+                  <option key={key} value={key}>
+                    {SORTS[key]}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {notice ? <p className="w-full text-[13px] text-ink-muted">{notice}</p> : null}
         </div>
 
         {results.length === 0 ? (

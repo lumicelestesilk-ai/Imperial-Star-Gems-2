@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ShapeGlyph } from "./shape-glyph";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
 import type { Stone } from "@/lib/stones";
@@ -22,8 +23,10 @@ export function StoneCard({ stone, onEnquire }: { stone: Stone; onEnquire: (s: S
 
       <div className="mt-5 flex items-baseline justify-between gap-3">
         <h3 className="font-display text-[22px] leading-none">
-          {stone.shapeName} {stone.carat.toFixed(2)}
-          <span className="text-[15px] text-ink-muted"> ct</span>
+          <Link href={`/stones/${stone.sku}`} className="hover:underline hover:underline-offset-4">
+            {stone.shapeName} {stone.carat.toFixed(2)}
+            <span className="text-[15px] text-ink-muted"> ct</span>
+          </Link>
         </h3>
         <span className="shrink-0 rounded-[10px] border border-hairline px-2 py-0.5 text-[11px] text-ink-muted">
           {stone.origin === "natural" ? "Natural" : "Lab-grown"}
