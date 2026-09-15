@@ -22,9 +22,11 @@ import {
 
 const PAGE = 12;
 
+const FANCY = "Fancy";
+
 type Filters = {
   shapes: ShapeSlug[];
-  colors: ColorGrade[];
+  colors: (ColorGrade | typeof FANCY)[];
   clarities: ClarityGrade[];
   cuts: CutGrade[];
   labs: Lab[];
@@ -83,7 +85,10 @@ export function Catalog({
   const results = useMemo(() => {
     return stones.filter((s) => {
       if (filters.shapes.length && !filters.shapes.includes(s.shape)) return false;
-      if (filters.colors.length && (!isColorGrade(s.color) || !filters.colors.includes(s.color)))
+      if (
+        filters.colors.length &&
+        !(isColorGrade(s.color) ? filters.colors.includes(s.color) : filters.colors.includes(FANCY))
+      )
         return false;
       if (filters.clarities.length && !filters.clarities.includes(s.clarity)) return false;
       if (filters.cuts.length && (!s.cut || !filters.cuts.includes(s.cut))) return false;
@@ -195,7 +200,7 @@ export function Catalog({
 
         <ChipSet
           label="Colour"
-          options={COLOR_GRADES}
+          options={[...COLOR_GRADES, FANCY]}
           selected={filters.colors}
           onToggle={(v) => toggle("colors", v)}
         />
