@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { StoneGrid } from "./stone-grid";
-import { ShapeGlyph } from "./shape-glyph";
-import { SHAPES, type ShapeSlug } from "@/lib/shapes";
+import { CaratRange, ChipSet, ShapeFilter } from "./catalog-controls";
+import type { ShapeSlug } from "@/lib/shapes";
 import {
   CLARITY_GRADES,
   COLOR_GRADES,
@@ -138,74 +138,17 @@ export function Catalog({
           ) : null}
         </div>
 
-        <fieldset className="mt-6 border-t border-hairline pt-5">
-          <legend className="sr-only">Shape</legend>
-          <p className="text-[13px] text-ink-muted">Shape</p>
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {SHAPES.map((shape) => {
-              const on = filters.shapes.includes(shape.slug);
-              const available = perShape[shape.slug] ?? 0;
-              return (
-                <button
-                  key={shape.slug}
-                  type="button"
-                  onClick={() => toggle("shapes", shape.slug)}
-                  aria-pressed={on}
-                  disabled={available === 0}
-                  title={`${shape.name} (${available})`}
-                  className={`flex flex-col items-center gap-1 rounded-[12px] border px-1 py-2 transition-colors duration-200 disabled:opacity-35 ${
-                    on ? "border-ink bg-facet" : "border-hairline hover:border-metal"
-                  }`}
-                >
-                  <ShapeGlyph
-                    geometry={shape.geometry}
-                    frozen
-                    className={`h-7 w-7 ${
-                      on
-                        ? "[&_.glyph-facet]:stroke-ink [&_.glyph-outline]:stroke-ink"
-                        : "[&_.glyph-facet]:stroke-metal [&_.glyph-outline]:stroke-metal"
-                    }`}
-                  />
-                  <span className="text-[10px] leading-none">{shape.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+        <ShapeFilter
+          selected={filters.shapes}
+          counts={perShape}
+          onToggle={(slug) => toggle("shapes", slug)}
+        />
 
-        <fieldset className="mt-6 border-t border-hairline pt-5">
-          <legend className="sr-only">Carat range</legend>
-          <p className="text-[13px] text-ink-muted">Carat</p>
-          <div className="mt-3 flex items-center gap-3">
-            <label className="flex-1">
-              <span className="sr-only">Minimum carat</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.05"
-                min={min}
-                max={filters.caratMax}
-                value={filters.caratMin}
-                onChange={(e) => setCarat("caratMin", e.target.value)}
-                className="w-full rounded-[12px] border border-hairline bg-porcelain px-3 py-2 text-[15px] tabular-nums transition-colors duration-200 focus:border-ink"
-              />
-            </label>
-            <span aria-hidden className="h-px w-3 bg-hairline" />
-            <label className="flex-1">
-              <span className="sr-only">Maximum carat</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.05"
-                min={filters.caratMin}
-                max={max}
-                value={filters.caratMax}
-                onChange={(e) => setCarat("caratMax", e.target.value)}
-                className="w-full rounded-[12px] border border-hairline bg-porcelain px-3 py-2 text-[15px] tabular-nums transition-colors duration-200 focus:border-ink"
-              />
-            </label>
-          </div>
-        </fieldset>
+        <CaratRange
+          bounds={[min, max]}
+          value={[filters.caratMin, filters.caratMax]}
+          onChange={setCarat}
+        />
 
         <ChipSet
           label="Colour"
@@ -305,42 +248,5 @@ export function Catalog({
         ) : null}
       </div>
     </div>
-  );
-}
-
-function ChipSet<T extends string>({
-  label,
-  options,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  options: readonly T[];
-  selected: T[];
-  onToggle: (value: T) => void;
-}) {
-  return (
-    <fieldset className="mt-6 border-t border-hairline pt-5">
-      <legend className="sr-only">{label}</legend>
-      <p className="text-[13px] text-ink-muted">{label}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {options.map((option) => {
-          const on = selected.includes(option);
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onToggle(option)}
-              aria-pressed={on}
-              className={`rounded-[10px] border px-3 py-1.5 text-[13px] transition-colors duration-200 ${
-                on ? "border-ink bg-facet" : "border-hairline hover:border-metal"
-              }`}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
   );
 }

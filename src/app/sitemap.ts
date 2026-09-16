@@ -3,6 +3,7 @@ import { GUIDES } from "@/lib/guides";
 import { insightDate, listInsights } from "@/lib/insights";
 import { SHAPES } from "@/lib/shapes";
 import { ALL_STONES } from "@/lib/stones";
+import { ALL_JEWELRY } from "@/lib/real-jewelry";
 
 const BASE = "https://www.imperialstargems.com";
 
@@ -18,6 +19,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/shapes", priority: 0.8 },
     ...SHAPES.map((s) => ({ path: `/shapes/${s.slug}`, priority: 0.7 })),
     ...ALL_STONES.map((s) => ({ path: `/stones/${s.sku}`, priority: 0.5 })),
+    { path: "/jewelry", priority: 0.9 },
+    ...ALL_JEWELRY.map((j) => ({ path: `/jewelry/${j.sku}`, priority: 0.5 })),
     { path: "/carat-guide", priority: 0.8 },
     { path: "/color-guide", priority: 0.8 },
     { path: "/cut-guide", priority: 0.8 },

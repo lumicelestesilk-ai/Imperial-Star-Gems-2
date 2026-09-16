@@ -1,11 +1,11 @@
-import { SHAPES, type Shape, type ShapeSlug } from "./shapes";
+import type { ShapeSlug } from "./shapes";
 import { REAL_LAB_STONES } from "./real-stones";
 import { REAL_NATURAL_STONES } from "./real-natural-stones";
 
 export type Origin = "natural" | "lab";
 
 export type Stone = {
-  /** ISG-[SHAPE]-[N|L]-[NUMBER] */
+  /** The supplier's own reference ("TP-280626-3329", "OM-1026"). */
   sku: string;
   shape: ShapeSlug;
   shapeName: string;
@@ -29,12 +29,9 @@ export type Stone = {
 };
 
 export const COLOR_GRADES = ["D", "E", "F", "G", "H", "I", "J"] as const;
-/** "I1" and "I2" are real-stock-only grades — the generator below never assigns it. */
 export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1", "I2"] as const;
-/** "Ideal" and "Fair" are real-stock-only grades — the generator below never assigns them. */
 export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Fair", "Ideal"] as const;
 export const LABS = ["GIA", "IGI"] as const;
-/** "Very Slight", "Slight" and "Strong" are real-stock-only — the generator below never assigns them. */
 export const FLUORESCENCE = ["None", "Faint", "Very Slight", "Slight", "Medium", "Strong"] as const;
 
 export type ColorGrade = (typeof COLOR_GRADES)[number];
@@ -51,162 +48,23 @@ export function isColorGrade(color: ColorGrade | FancyColor): color is ColorGrad
 }
 
 /**
- * Shown once at the top of each catalogue. The stones below are a representative
- * sample, not live stock — delete this constant and its usages (both catalogue
- * pages and both PDF spec sheets) on the day a real inventory feed is connected.
+ * Shown once at the top of each catalogue. Stock lists are static files, so
+ * availability can lag behind the trade desk.
  */
-export const INVENTORY_NOTICE =
-  "A representative selection. Current availability is confirmed on enquiry.";
+export const INVENTORY_NOTICE = "Current availability is confirmed on enquiry.";
 
-/** Deterministic PRNG, so SKUs and grades are stable across builds and renders. */
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Picks from `items` with integer weights — lower grades stay uncommon. */
-function weighted<T>(rand: () => number, items: readonly T[], weights: number[]): T {
-  const total = weights.reduce((a, b) => a + b, 0);
-  let roll = rand() * total;
-  for (let i = 0; i < items.length; i++) {
-    roll -= weights[i];
-    if (roll <= 0) return items[i];
-  }
-  return items[items.length - 1];
-}
-
-function midRatio(shape: Shape): number {
-  const [lo, hi] = shape.ratio.split("–").map((s) => Number.parseFloat(s.trim()));
-  return (lo + hi) / 2;
-}
-
-function measurementsFor(shape: Shape, carat: number, rand: () => number): string {
-  // A one-carat round sits at roughly 6.5 mm; diameter scales with the cube root
-  // of weight. Fancy shapes are spread about that figure by their ratio.
-  const base = 6.5 * Math.cbrt(carat);
-  const ratio = midRatio(shape) * (0.97 + rand() * 0.06);
-  const width = base / Math.sqrt(ratio);
-  const length = base * Math.sqrt(ratio);
-  const depth = base * (0.6 + rand() * 0.05);
-  const mm = (n: number) => n.toFixed(2);
-  return `${mm(length)} x ${mm(width)} x ${mm(depth)} mm`;
-}
-
-function buildStone(shape: Shape, origin: Origin, seed: number): Stone {
-  const rand = mulberry32(seed);
-
-  // Weight bands: most stock sits between half a carat and two carats.
-  const band = rand();
-  const carat =
-    band < 0.42
-      ? 0.3 + rand() * 0.7
-      : band < 0.8
-        ? 1.0 + rand() * 1.0
-        : band < 0.95
-          ? 2.0 + rand() * 1.5
-          : 3.5 + rand() * 1.6;
-
-  // Grown stones cluster at the top of the colour and clarity scales.
-  const color = weighted(
-    rand,
-    COLOR_GRADES,
-    origin === "lab" ? [16, 15, 13, 9, 5, 2, 1] : [8, 10, 12, 12, 9, 6, 4],
-  );
-  const clarity = weighted(
-    rand,
-    CLARITY_GRADES,
-    origin === "lab" ? [4, 8, 13, 13, 12, 10, 5, 2] : [1, 4, 8, 10, 13, 13, 9, 5],
-  );
-  const cut = weighted(rand, CUT_GRADES, [14, 7, 2, 0]);
-  const polish = weighted(rand, CUT_GRADES, [16, 6, 1, 0]);
-  const symmetry = weighted(rand, CUT_GRADES, [15, 7, 1, 0]);
-  const fluorescence = weighted(
-    rand,
-    FLUORESCENCE,
-    origin === "lab" ? [18, 3, 0, 0, 1] : [12, 5, 0, 0, 3],
-  );
-  // Grown goods are graded by IGI more often than by GIA; natural skews the
-  // other way.
-  const lab = weighted(rand, LABS, origin === "lab" ? [4, 10] : [11, 5]);
-
-  const serial = 10000 + Math.floor(rand() * 89999);
-  const sku = `ISG-${shape.code}-${origin === "natural" ? "N" : "L"}-${serial}`;
-
-  return {
-    sku,
-    shape: shape.slug,
-    shapeName: shape.name,
-    shapeCode: shape.code,
-    origin,
-    carat: Math.round(carat * 100) / 100,
-    color,
-    clarity,
-    cut,
-    polish,
-    symmetry,
-    fluorescence,
-    lab,
-    measurements: measurementsFor(shape, carat, rand),
-    tablePercent: Math.round(54 + rand() * 8),
-    depthPercent: Math.round((59 + rand() * 6) * 10) / 10,
-    featured: false,
-  };
-}
-
-function buildCatalog(origin: Origin, count: number, seedBase: number): Stone[] {
-  const stones: Stone[] = [];
-  const seen = new Set<string>();
-  let attempt = 0;
-
-  while (stones.length < count) {
-    // Rotate through the shapes so every shape has stock in both catalogues.
-    const shape = SHAPES[stones.length % SHAPES.length];
-    const stone = buildStone(shape, origin, seedBase + attempt * 7919);
-    attempt++;
-    if (seen.has(stone.sku)) continue;
-    seen.add(stone.sku);
-    stones.push(stone);
-  }
-  return stones;
-}
-
-/**
- * Same rule as the lab catalogue below: shapes with real natural stock
- * (`real-natural-stones.ts`) drop their generated entries.
- */
-const REAL_NATURAL_SHAPES = new Set(REAL_NATURAL_STONES.map((s) => s.shape));
-
-export const NATURAL_STONES: Stone[] = [
-  ...buildCatalog("natural", 66, 20260913).filter((s) => !REAL_NATURAL_SHAPES.has(s.shape)),
-  ...REAL_NATURAL_STONES,
-];
-
-/**
- * Any shape with real stock (`real-stones.ts`) drops its generated entries
- * from the lab catalogue, so the two don't sit side by side. Shapes with no
- * real stock yet (princess, at last count) stay fully generated.
- */
-const REAL_LAB_SHAPES = new Set(REAL_LAB_STONES.map((s) => s.shape));
-
-export const LAB_STONES: Stone[] = [
-  ...buildCatalog("lab", 55, 77010203).filter((s) => !REAL_LAB_SHAPES.has(s.shape)),
-  ...REAL_LAB_STONES,
-];
+export const NATURAL_STONES: Stone[] = REAL_NATURAL_STONES;
+export const LAB_STONES: Stone[] = REAL_LAB_STONES;
 
 export const ALL_STONES: Stone[] = [...NATURAL_STONES, ...LAB_STONES];
 
-/** Six stones for the home page — one per shape, spread across both origins. */
+/** Up to six stones for the home page — one per shape, spread across both origins. */
 export const FEATURED_STONES: Stone[] = (() => {
   const wanted: Array<[ShapeSlug, Origin]> = [
     ["radiant", "natural"],
     ["oval", "natural"],
     ["emerald", "lab"],
-    ["round", "natural"],
+    ["round", "lab"],
     ["pear", "lab"],
     ["asscher", "natural"],
   ];
@@ -239,7 +97,7 @@ export function countByShape(stones: Stone[]): Record<string, number> {
 
 /**
  * Sortable intake key from a supplier SKU — "TP-070926-3399" is 7 Sep 2026, serial 3399.
- * Generated stock carries no date and returns 0, so it sorts after dated stock.
+ * Other references carry no date and return 0, so they sort after dated stock.
  */
 export function addedKey(stone: Stone): number {
   const short = /^TP-(\d{2})(\d{2})(\d{2})-+(\d+)/.exec(stone.sku);

@@ -1,4 +1,5 @@
 import type { Stone } from "./stones";
+import { jewelDescriptor, type JewelSummary } from "./jewelry";
 
 /**
  * The single source of contact details for the whole site — pages, spec sheet
@@ -21,26 +22,62 @@ export function stoneDescriptor(stone: Stone): string {
   return `${stone.shapeName}, ${stone.carat.toFixed(2)}ct, ${stone.color}/${stone.clarity}`;
 }
 
-export function enquirySubject(stone: Stone): string {
-  return `Enquiry - SKU ${stone.sku}`;
+/** Anything with a SKU that can be enquired on — a stone or a piece of jewelry. */
+type Enquirable = { sku: string; noun: string; descriptor: string };
+
+const asStone = (stone: Stone): Enquirable => ({
+  sku: stone.sku,
+  noun: "stone",
+  descriptor: stoneDescriptor(stone),
+});
+
+const asJewel = (jewel: JewelSummary): Enquirable => ({
+  sku: jewel.sku,
+  noun: "piece",
+  descriptor: jewelDescriptor(jewel),
+});
+
+function subjectFor(item: Enquirable): string {
+  return `Enquiry - SKU ${item.sku}`;
 }
 
-export function enquiryBody(stone: Stone): string {
-  return `Hi, I'm interested in stone SKU ${stone.sku} (${stoneDescriptor(stone)}). Please share more details.`;
+function bodyFor(item: Enquirable): string {
+  return `Hi, I'm interested in ${item.noun} SKU ${item.sku} (${item.descriptor}). Please share more details.`;
 }
 
-export function mailtoHref(stone: Stone): string {
-  const params = new URLSearchParams({
-    subject: enquirySubject(stone),
-    body: enquiryBody(stone),
-  });
+function mailtoFor(item: Enquirable): string {
+  const params = new URLSearchParams({ subject: subjectFor(item), body: bodyFor(item) });
   // URLSearchParams encodes spaces as "+", which mail clients render literally
   // in a subject line. %20 is correct for a mailto query.
   return `mailto:${SALES_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
 }
 
+function whatsappFor(item: Enquirable): string {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(bodyFor(item))}`;
+}
+
+export function enquirySubject(stone: Stone): string {
+  return subjectFor(asStone(stone));
+}
+
+export function enquiryBody(stone: Stone): string {
+  return bodyFor(asStone(stone));
+}
+
+export function mailtoHref(stone: Stone): string {
+  return mailtoFor(asStone(stone));
+}
+
 export function whatsappHref(stone: Stone): string {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(enquiryBody(stone))}`;
+  return whatsappFor(asStone(stone));
+}
+
+export function jewelMailtoHref(jewel: JewelSummary): string {
+  return mailtoFor(asJewel(jewel));
+}
+
+export function jewelWhatsappHref(jewel: JewelSummary): string {
+  return whatsappFor(asJewel(jewel));
 }
 
 /** General enquiry links, for the header and contact page. */

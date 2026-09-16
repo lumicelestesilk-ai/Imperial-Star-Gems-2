@@ -9,6 +9,7 @@ const COLUMNS = [
     links: [
       { href: "/natural-diamonds", label: "Natural diamonds" },
       { href: "/lab-grown-diamonds", label: "Lab-grown diamonds" },
+      { href: "/jewelry", label: "Diamond jewelry" },
       { href: "/shapes", label: "Shapes" },
       { href: "/carat-guide", label: "Carat guide" },
       { href: "/color-guide", label: "Colour guide" },

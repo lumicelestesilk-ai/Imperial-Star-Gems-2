@@ -8,12 +8,12 @@ import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { useDeviceType } from "@/hooks/use-device-type";
 
-// Seven items plus the Enquire button no longer fit beside the wordmark at
-// lg, so the full nav now appears from xl and the toggle covers everything
-// below it.
+// Eight items plus the Enquire button don't fit beside the wordmark at lg,
+// so the full nav appears from xl and the toggle covers everything below it.
 const NAV = [
   { href: "/natural-diamonds", label: "Natural" },
   { href: "/lab-grown-diamonds", label: "Lab-Grown" },
+  { href: "/jewelry", label: "Jewelry" },
   { href: "/shapes", label: "Shapes" },
   { href: "/guides", label: "Guides" },
   { href: "/craftsmanship", label: "Craftsmanship" },

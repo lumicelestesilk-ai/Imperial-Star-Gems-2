@@ -251,7 +251,9 @@ somewhere; without it the route accepts and logs a warning.
 > serverless instances. Put a real limiter or a WAF rule in front of it before
 > launch.
 
-SKU format: `ISG-[SHAPE]-[N|L]-[NUMBER]`, e.g. `ISG-RD-N-10234`.
+SKUs are the supplier's own references (`TP-280626-3329` lab-grown, `OM-1026`
+natural). Stock lives in `src/lib/real-stones.ts` (lab-grown) and
+`src/lib/real-natural-stones.ts` (natural).
 
 ---
 

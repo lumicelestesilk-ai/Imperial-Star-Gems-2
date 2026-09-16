@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "sequence:convert": "node scripts/convert-sequence.mjs"
+    "sequence:convert": "node scripts/convert-sequence.mjs",
+    "jewelry:scrape": "node scripts/scrape-jewelry.mjs"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
