@@ -14,12 +14,12 @@ import type { ClarityGrade, Origin } from "./stones";
  * count, so no drawing stands in for a real plot.
  */
 
-/** GIA's full scale. The catalogue carries FL to I1 (CLARITY_GRADES in stones.ts). */
+/** GIA's full scale. The catalogue carries FL to I2 (CLARITY_GRADES in stones.ts). */
 export const FULL_SCALE = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1", "I2", "I3"] as const;
 export type ScaleClarity = (typeof FULL_SCALE)[number];
 
 /** The grades stock can carry, in scale order. Mirrors CLARITY_GRADES in stones.ts. */
-export const STOCKED_CLARITIES = FULL_SCALE.slice(0, 9) as ClarityGrade[];
+export const STOCKED_CLARITIES = FULL_SCALE.slice(0, 10) as ClarityGrade[];
 
 export type InclusionPattern = {
   pinpoints: number;

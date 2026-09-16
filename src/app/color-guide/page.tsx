@@ -327,7 +327,7 @@ export default function ColorGuidePage() {
                 ["Cut", "How the proportions return light. Graded for round brilliants only."],
                 ["Polish", "The finish of the facet surfaces."],
                 ["Symmetry", "How precisely the facets align with each other and the outline."],
-                ["Clarity", "Inclusions and blemishes, from FL down to I1."],
+                ["Clarity", "Inclusions and blemishes, from FL down to I2."],
                 ["Fluorescence", "The strength of any glow under ultraviolet light."],
               ].map(([term, detail]) => (
                 <div key={term}>

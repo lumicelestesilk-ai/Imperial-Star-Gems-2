@@ -1,5 +1,6 @@
 import { SHAPES, type Shape, type ShapeSlug } from "./shapes";
 import { REAL_LAB_STONES } from "./real-stones";
+import { REAL_NATURAL_STONES } from "./real-natural-stones";
 
 export type Origin = "natural" | "lab";
 
@@ -28,8 +29,8 @@ export type Stone = {
 };
 
 export const COLOR_GRADES = ["D", "E", "F", "G", "H", "I", "J"] as const;
-/** "I1" is a real-stock-only grade — the generator below never assigns it. */
-export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1"] as const;
+/** "I1" and "I2" are real-stock-only grades — the generator below never assigns it. */
+export const CLARITY_GRADES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "I1", "I2"] as const;
 /** "Ideal" and "Fair" are real-stock-only grades — the generator below never assigns them. */
 export const CUT_GRADES = ["Excellent", "Very Good", "Good", "Fair", "Ideal"] as const;
 export const LABS = ["GIA", "IGI"] as const;
@@ -174,7 +175,16 @@ function buildCatalog(origin: Origin, count: number, seedBase: number): Stone[] 
   return stones;
 }
 
-export const NATURAL_STONES: Stone[] = buildCatalog("natural", 66, 20260913);
+/**
+ * Same rule as the lab catalogue below: shapes with real natural stock
+ * (`real-natural-stones.ts`) drop their generated entries.
+ */
+const REAL_NATURAL_SHAPES = new Set(REAL_NATURAL_STONES.map((s) => s.shape));
+
+export const NATURAL_STONES: Stone[] = [
+  ...buildCatalog("natural", 66, 20260913).filter((s) => !REAL_NATURAL_SHAPES.has(s.shape)),
+  ...REAL_NATURAL_STONES,
+];
 
 /**
  * Any shape with real stock (`real-stones.ts`) drops its generated entries

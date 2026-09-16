@@ -384,7 +384,7 @@ export default function CaratGuidePage() {
                 ["Polish", "The finish of the facet surfaces."],
                 ["Symmetry", "How precisely the facets align with each other and the outline."],
                 ["Colour", "D to J on the colourless scale, or a fancy-colour description."],
-                ["Clarity", "Inclusions and blemishes, from FL down to I1."],
+                ["Clarity", "Inclusions and blemishes, from FL down to I2."],
                 ["Measurements", "Length, width and depth in millimetres. Read these with the carat figure."],
               ].map(([term, detail]) => (
                 <div key={term}>

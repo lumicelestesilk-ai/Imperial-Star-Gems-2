@@ -300,7 +300,7 @@ export default function ClarityGuidePage() {
             </div>
             <dl className="grid gap-x-8 gap-y-4 self-start border-t border-hairline pt-6 sm:grid-cols-2">
               {[
-                ["Clarity", "FL to I1 on our listings; the full scale runs to I3."],
+                ["Clarity", "FL to I2 on our listings; the full scale runs to I3."],
                 ["Colour", "D to Z for white diamonds, or a fancy-colour description."],
                 ["Cut", "How the proportions return light. Graded for round brilliants only."],
                 ["Polish", "The finish of the facet surfaces."],
