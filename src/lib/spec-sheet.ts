@@ -1,5 +1,5 @@
 import { PdfDocument, fit, textWidth, wrap, type Rgb } from "./pdf";
-import { SALES_EMAIL, SALES_PHONE, WHATSAPP_NUMBER } from "./contact";
+import { SALES_EMAIL, SALES_PHONE, SALES_PHONE_ALT, WHATSAPP_NUMBER } from "./contact";
 import { SITE_URL, originWord, stoneSpecs } from "./stone-specs";
 import {
   INVENTORY_NOTICE,
@@ -149,11 +149,12 @@ export function renderCatalogueSheet({
       "Fluor: NON None, FNT Faint, VSL Very Slight, SLT Slight, MED Medium, STG Strong. Each row links to the stone online.",
       { size: 6.5, color: MUTED },
     );
-    doc.text(W - M, 564, `${SALES_EMAIL}  •  ${SALES_PHONE}  •  WhatsApp +${WHATSAPP_NUMBER}`, {
-      size: 7.5,
-      color: INK,
-      align: "right",
-    });
+    doc.text(
+      W - M,
+      564,
+      `${SALES_EMAIL}  •  ${SALES_PHONE}${SALES_PHONE_ALT ? `  •  ${SALES_PHONE_ALT}` : ""}  •  WhatsApp +${WHATSAPP_NUMBER}`,
+      { size: 7.5, color: INK, align: "right" },
+    );
     doc.text(W - M, 573, SITE_URL.replace(/^https:\/\//, ""), {
       size: 6.5,
       color: MUTED,
@@ -216,7 +217,10 @@ export function renderStoneSheet(stone: Stone, preparedAt: Date): Buffer {
 
   y += 40;
   doc.text(M, y, "Sales", { size: 10, font: "bold", color: INK });
-  for (const line of [SALES_EMAIL, SALES_PHONE, `WhatsApp +${WHATSAPP_NUMBER}`]) {
+  const salesLines = [SALES_EMAIL, SALES_PHONE];
+  if (SALES_PHONE_ALT) salesLines.push(SALES_PHONE_ALT);
+  salesLines.push(`WhatsApp +${WHATSAPP_NUMBER}`);
+  for (const line of salesLines) {
     y += 15;
     doc.text(M, y, line, { size: 10, color: INK });
   }

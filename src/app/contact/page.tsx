@@ -5,7 +5,7 @@ import { GLYPHS } from "@/lib/glyphs";
 import { SHAPES } from "@/lib/shapes";
 import { CUT_GRADES } from "@/lib/stones";
 import { FULL_SCALE } from "@/lib/clarity-grades";
-import { SALES_EMAIL, SALES_PHONE, generalWhatsappHref } from "@/lib/contact";
+import { SALES_EMAIL, SALES_PHONE, SALES_PHONE_ALT, generalWhatsappHref } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -134,6 +134,16 @@ export default async function ContactPage({
                       {SALES_PHONE}
                     </a>
                   </dd>
+                  {SALES_PHONE_ALT && (
+                    <dd className="mt-1">
+                      <a
+                        href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
+                        className="text-[15px] tabular-nums underline-offset-4 hover:underline"
+                      >
+                        {SALES_PHONE_ALT}
+                      </a>
+                    </dd>
+                  )}
                 </div>
                 <div>
                   <dt className="text-[12px] text-ink-muted-panel">Hours</dt>

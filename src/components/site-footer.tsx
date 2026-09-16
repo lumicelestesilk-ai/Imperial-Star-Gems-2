@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
-import { SALES_EMAIL, SALES_PHONE, generalWhatsappHref } from "@/lib/contact";
+import { SALES_EMAIL, SALES_PHONE, SALES_PHONE_ALT, generalWhatsappHref } from "@/lib/contact";
 
 const COLUMNS = [
   {
@@ -85,6 +85,16 @@ export function SiteFooter() {
                   {SALES_PHONE}
                 </a>
               </li>
+              {SALES_PHONE_ALT && (
+                <li>
+                  <a
+                    href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
+                    className="text-ink-muted-panel underline-offset-4 transition-colors duration-200 hover:text-ink hover:underline"
+                  >
+                    {SALES_PHONE_ALT}
+                  </a>
+                </li>
+              )}
               <li>
                 <a
                   href={generalWhatsappHref()}

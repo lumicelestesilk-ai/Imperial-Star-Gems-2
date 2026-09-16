@@ -15,6 +15,9 @@ export const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "9100
 
 export const SALES_PHONE = process.env.NEXT_PUBLIC_SALES_PHONE || "+91 00000 00000";
 
+/** Secondary contact line, shown alongside the primary number. */
+export const SALES_PHONE_ALT = process.env.NEXT_PUBLIC_SALES_PHONE_ALT || "";
+
 /** "Round, 1.02ct, D/VVS1" — the recap that rides along with every enquiry. */
 export function stoneDescriptor(stone: Stone): string {
   return `${stone.shapeName}, ${stone.carat.toFixed(2)}ct, ${stone.color}/${stone.clarity}`;
