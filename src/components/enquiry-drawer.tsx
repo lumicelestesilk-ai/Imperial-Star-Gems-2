@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { StoneModel } from "./stone-model";
-import { EnquiryForm } from "./enquiry-form";
 import type { Stone } from "@/lib/stones";
-import { enquiryBody, mailtoHref, stoneDescriptor, whatsappHref } from "@/lib/contact";
+import { mailtoHref, stoneDescriptor, whatsappHref } from "@/lib/contact";
 import { useDeviceType } from "@/hooks/use-device-type";
 
 const MODAL_HIDDEN = { opacity: 0, scale: 0.96, y: 12 };
@@ -178,17 +177,6 @@ export function EnquiryDrawer({ stone, onClose }: { stone: Stone | null; onClose
                   >
                     Email
                   </a>
-                </div>
-
-                <div className="mt-8 border-t border-hairline pt-6">
-                  <h3 className="font-display text-xl">Or send it from here</h3>
-                  <div className="mt-4">
-                    <EnquiryForm
-                      sku={stone.sku}
-                      defaultMessage={enquiryBody(stone)}
-                      compact
-                    />
-                  </div>
                 </div>
 
                 <p className="mt-6 text-[12px] text-ink-muted">
