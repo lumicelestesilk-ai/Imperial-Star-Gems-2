@@ -1,22 +1,20 @@
 import type { Stone } from "./stones";
 
 /**
- * Contact details come from the environment so the number and address can be
- * changed without a code edit. The fallbacks are obvious placeholders — if a
- * deployment ships with them, it is visibly wrong rather than quietly wrong.
+ * The single source of contact details for the whole site — pages, spec sheet
+ * PDFs, WhatsApp and mail links all read from here. Held in code rather than
+ * the environment so every deployment shows the same numbers without depending
+ * on config being set correctly. Change them here and the site follows.
  */
-export const SALES_EMAIL = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@imperialstargems.com";
+export const SALES_EMAIL = "sales@imperialstargems.com";
 
 /** Digits only, including country code. wa.me rejects "+", spaces and dashes. */
-export const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "910000000000").replace(
-  /\D/g,
-  "",
-);
+export const WHATSAPP_NUMBER = "918140089896";
 
-export const SALES_PHONE = process.env.NEXT_PUBLIC_SALES_PHONE || "+91 00000 00000";
+export const SALES_PHONE = "+91 81400 89896";
 
-/** Secondary contact line, shown alongside the primary number. */
-export const SALES_PHONE_ALT = process.env.NEXT_PUBLIC_SALES_PHONE_ALT || "";
+/** Secondary line, shown alongside the primary number. */
+export const SALES_PHONE_ALT = "+44 7470 911 557";
 
 /** "Round, 1.02ct, D/VVS1" — the recap that rides along with every enquiry. */
 export function stoneDescriptor(stone: Stone): string {

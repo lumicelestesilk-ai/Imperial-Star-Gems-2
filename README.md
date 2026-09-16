@@ -259,8 +259,8 @@ SKU format: `ISG-[SHAPE]-[N|L]-[NUMBER]`, e.g. `ISG-RD-N-10234`.
 
 - **The 333-frame 360° render.** `rotate/` is currently a 138-frame stand-in
   showing a partial turn. See *The 360° frames are a stand-in* above.
-- **`NEXT_PUBLIC_WHATSAPP_NUMBER`** and **`NEXT_PUBLIC_SALES_EMAIL`** — the
-  fallbacks are deliberately obvious placeholders.
+- **Contact details** — email, phone and WhatsApp are hard-coded in
+  [`src/lib/contact.ts`](src/lib/contact.ts). Confirm they are current.
 - **Inventory.** The 121 stones in [`src/lib/stones.ts`](src/lib/stones.ts) are
   generated from a seeded PRNG, not real stock. Replace `buildCatalog` with the
   live feed and delete `INVENTORY_NOTICE` and its two usages.

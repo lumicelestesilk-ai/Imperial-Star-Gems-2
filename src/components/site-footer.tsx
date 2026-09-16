@@ -85,16 +85,14 @@ export function SiteFooter() {
                   {SALES_PHONE}
                 </a>
               </li>
-              {SALES_PHONE_ALT && (
-                <li>
-                  <a
-                    href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
-                    className="text-ink-muted-panel underline-offset-4 transition-colors duration-200 hover:text-ink hover:underline"
-                  >
-                    {SALES_PHONE_ALT}
-                  </a>
-                </li>
-              )}
+              <li>
+                <a
+                  href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
+                  className="text-ink-muted-panel underline-offset-4 transition-colors duration-200 hover:text-ink hover:underline"
+                >
+                  {SALES_PHONE_ALT}
+                </a>
+              </li>
               <li>
                 <a
                   href={generalWhatsappHref()}

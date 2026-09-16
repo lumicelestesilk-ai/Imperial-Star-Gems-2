@@ -134,16 +134,14 @@ export default async function ContactPage({
                       {SALES_PHONE}
                     </a>
                   </dd>
-                  {SALES_PHONE_ALT && (
-                    <dd className="mt-1">
-                      <a
-                        href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
-                        className="text-[15px] tabular-nums underline-offset-4 hover:underline"
-                      >
-                        {SALES_PHONE_ALT}
-                      </a>
-                    </dd>
-                  )}
+                  <dd className="mt-1">
+                    <a
+                      href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
+                      className="text-[15px] tabular-nums underline-offset-4 hover:underline"
+                    >
+                      {SALES_PHONE_ALT}
+                    </a>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-[12px] text-ink-muted-panel">Hours</dt>

@@ -152,7 +152,7 @@ export function renderCatalogueSheet({
     doc.text(
       W - M,
       564,
-      `${SALES_EMAIL}  •  ${SALES_PHONE}${SALES_PHONE_ALT ? `  •  ${SALES_PHONE_ALT}` : ""}  •  WhatsApp +${WHATSAPP_NUMBER}`,
+      `${SALES_EMAIL}  •  ${SALES_PHONE}  •  ${SALES_PHONE_ALT}  •  WhatsApp +${WHATSAPP_NUMBER}`,
       { size: 7.5, color: INK, align: "right" },
     );
     doc.text(W - M, 573, SITE_URL.replace(/^https:\/\//, ""), {
@@ -217,10 +217,12 @@ export function renderStoneSheet(stone: Stone, preparedAt: Date): Buffer {
 
   y += 40;
   doc.text(M, y, "Sales", { size: 10, font: "bold", color: INK });
-  const salesLines = [SALES_EMAIL, SALES_PHONE];
-  if (SALES_PHONE_ALT) salesLines.push(SALES_PHONE_ALT);
-  salesLines.push(`WhatsApp +${WHATSAPP_NUMBER}`);
-  for (const line of salesLines) {
+  for (const line of [
+    SALES_EMAIL,
+    SALES_PHONE,
+    SALES_PHONE_ALT,
+    `WhatsApp +${WHATSAPP_NUMBER}`,
+  ]) {
     y += 15;
     doc.text(M, y, line, { size: 10, color: INK });
   }
