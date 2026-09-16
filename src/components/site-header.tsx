@@ -8,10 +8,14 @@ import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { useDeviceType } from "@/hooks/use-device-type";
 
+// Seven items plus the Enquire button no longer fit beside the wordmark at
+// lg, so the full nav now appears from xl and the toggle covers everything
+// below it.
 const NAV = [
   { href: "/natural-diamonds", label: "Natural" },
   { href: "/lab-grown-diamonds", label: "Lab-Grown" },
   { href: "/shapes", label: "Shapes" },
+  { href: "/guides", label: "Guides" },
   { href: "/craftsmanship", label: "Craftsmanship" },
   { href: "/insights", label: "Insights" },
   { href: "/contact", label: "Contact" },
@@ -93,7 +97,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-6 xl:flex xl:gap-8" aria-label="Primary">
           {NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -124,7 +128,7 @@ export function SiteHeader() {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="mobile-nav"
-          className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-hairline lg:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-hairline xl:hidden"
         >
           <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
           <span aria-hidden className="flex flex-col gap-[5px]">
@@ -200,7 +204,7 @@ export function SiteHeader() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.32, ease: [0.22, 0.61, 0.36, 1] }}
-            className="overflow-hidden border-t border-hairline bg-porcelain lg:hidden"
+            className="overflow-hidden border-t border-hairline bg-porcelain xl:hidden"
           >
             <nav className="flex flex-col px-5 py-3 sm:px-8" aria-label="Primary">
               {NAV.map((item) => (

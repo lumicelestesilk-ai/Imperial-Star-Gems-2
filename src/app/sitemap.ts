@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { GUIDES } from "@/lib/guides";
 import { insightDate, listInsights } from "@/lib/insights";
 import { SHAPES } from "@/lib/shapes";
 import { ALL_STONES } from "@/lib/stones";
@@ -21,6 +22,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/color-guide", priority: 0.8 },
     { path: "/cut-guide", priority: 0.8 },
     { path: "/clarity-guide", priority: 0.8 },
+    { path: "/glossary", priority: 0.8 },
+    { path: "/guides", priority: 0.8 },
+    ...GUIDES.map((g) => ({ path: `/guides/${g.slug}`, priority: 0.7 })),
     { path: "/craftsmanship", priority: 0.7 },
     {
       path: "/insights",

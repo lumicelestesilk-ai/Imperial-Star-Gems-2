@@ -17,8 +17,10 @@ const COLUMNS = [
     ],
   },
   {
-    heading: "House",
+    heading: "Learn",
     links: [
+      { href: "/guides", label: "Buying guides" },
+      { href: "/glossary", label: "Glossary" },
       { href: "/craftsmanship", label: "Craftsmanship" },
       { href: "/insights", label: "Market insights" },
       { href: "/contact", label: "Contact" },
