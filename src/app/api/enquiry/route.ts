@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDb, isMongoConfigured } from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That email address looks incomplete." }, { status: 400 });
   }
 
+  // The database is the record of truth: store first, then notify. An enquiry
+  // that is safely stored is never reported as a failure to the sender.
+  let stored = false;
+  if (isMongoConfigured()) {
+    try {
+      const db = await getDb();
+      await db.collection("inquiries").insertOne({ ...enquiry, createdAt: new Date() });
+      stored = true;
+    } catch (err) {
+      console.error("[enquiry] database write failed", err);
+      return NextResponse.json(
+        { error: "We could not save that just now. Please use WhatsApp or email instead." },
+        { status: 500 },
+      );
+    }
+  } else {
+    console.warn("[enquiry] imperialstargem_MONGODB_URI is not set — enquiry will not be stored.");
+  }
+
   const webhook = process.env.ENQUIRY_WEBHOOK_URL;
   if (webhook) {
     try {
@@ -90,18 +110,17 @@ export async function POST(request: Request) {
       if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
     } catch (err) {
       console.error("[enquiry] delivery failed", err);
-      return NextResponse.json(
-        { error: "We could not send that just now. Please use WhatsApp or email instead." },
-        { status: 502 },
-      );
+      if (!stored) {
+        return NextResponse.json(
+          { error: "We could not send that just now. Please use WhatsApp or email instead." },
+          { status: 502 },
+        );
+      }
     }
-  } else {
-    // No destination configured: record it so a local run is still testable, and
+  } else if (!stored) {
+    // Nothing configured at all: record it so a local run is still testable, and
     // make the gap obvious in the logs rather than silently dropping enquiries.
-    console.warn(
-      "[enquiry] ENQUIRY_WEBHOOK_URL is not set — enquiry accepted but not delivered:",
-      enquiry,
-    );
+    console.warn("[enquiry] no destination configured — enquiry accepted but not kept:", enquiry);
   }
 
   return NextResponse.json({ ok: true });
