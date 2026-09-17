@@ -2,36 +2,99 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
+import { STAGES, frameCount, frameUrl, stageAt, tiersFor } from "@/lib/sequence";
 import { useViewportWidth } from "@/hooks/use-device-type";
 
 /** Parallel requests while preloading. */
 const LANES = 8;
-/** At or below this width the thinned `scroll-mobile` tier is decoded. Not a
- *  device-type breakpoint: tablets up to 900px have always had the small tier. */
-const MOBILE_TIER_MAX_WIDTH = 900;
+/** The cutting sequence, rough to finished stone. */
+const INTRO_MS = 16_000;
+/** One full turn of the finished stone. */
+const TURN_MS = 7_000;
+/** Playback keeps this much of the intro loaded ahead of itself before moving on. */
+const BUFFER_MS = 1_000;
+/** Frames decoded ahead of the playhead, off the main thread. */
+const DECODE_AHEAD = 10;
+/** Decodes running at once. */
+const DECODE_LANES = 3;
+
 /**
- * Length of the cutting sequence, start to finished stone: the full 700-frame
- * tier at 30 fps. The thinned phone tier plays over the same time, so both
- * tiers show each stage for as long.
+ * Loaded frames plus a small sliding window of decoded bitmaps around the
+ * playhead. Drawing an undecoded image forces a synchronous decode on the main
+ * thread, which is what made playback stutter; bitmaps are decoded ahead, in
+ * the background, and released once the playhead has passed them.
  */
-const INTRO_MS = (frameCount("scroll") / 30) * 1000;
-/** Playback keeps this much of the sequence loaded ahead of itself before moving on. */
-const BUFFER_MS = 1000;
-/** Playback rate of the finished stone's loop, matching the homepage rotation. */
-const LOOP_FPS = 30;
+class FrameStore {
+  images: (HTMLImageElement | null)[];
+  private bitmaps = new Map<number, ImageBitmap>();
+  private pending = new Set<number>();
+  private closed = false;
+
+  constructor(
+    readonly count: number,
+    private readonly wraps: boolean,
+  ) {
+    this.images = new Array(count).fill(null);
+  }
+
+  private index(i: number) {
+    return this.wraps ? ((i % this.count) + this.count) % this.count : i;
+  }
+
+  /** The best drawable for frame i: its bitmap, its image, or null. */
+  get(i: number): CanvasImageSource | null {
+    const k = this.index(i);
+    return this.bitmaps.get(k) ?? this.images[k] ?? null;
+  }
+
+  /** Keep [from - 1, from + DECODE_AHEAD] decoded; release everything else. */
+  prepare(from: number) {
+    if (this.closed || typeof createImageBitmap !== "function") return;
+    const keep = new Set<number>();
+    for (let d = -1; d <= DECODE_AHEAD; d++) {
+      const k = this.index(from + d);
+      if (k >= 0 && k < this.count) keep.add(k);
+    }
+    for (const [k, bitmap] of this.bitmaps) {
+      if (!keep.has(k)) {
+        bitmap.close();
+        this.bitmaps.delete(k);
+      }
+    }
+    for (const k of keep) {
+      if (this.pending.size >= DECODE_LANES) break;
+      const img = this.images[k];
+      if (!img || this.bitmaps.has(k) || this.pending.has(k)) continue;
+      this.pending.add(k);
+      createImageBitmap(img)
+        .then((bitmap) => {
+          if (this.closed) bitmap.close();
+          else this.bitmaps.set(k, bitmap);
+        })
+        .catch(() => {})
+        .finally(() => this.pending.delete(k));
+    }
+  }
+
+  close() {
+    this.closed = true;
+    for (const bitmap of this.bitmaps.values()) bitmap.close();
+    this.bitmaps.clear();
+  }
+}
 
 /**
  * The homepage hero: one crystal cut from rough to finished stone.
  *
  * Plays on its own, on a clock. The cutting sequence runs once, the caption
  * follows it stage by stage, and on the last frame playback hands over to the
- * 360° loop of the finished stone, which then turns indefinitely. Nothing here
- * reads scroll position.
+ * 360° turn of the finished stone, which then loops indefinitely. The two are
+ * rendered from the same camera, so the handover is seamless. Frames are
+ * cross-faded, so motion stays smooth at the stored frame rate.
  *
  * The clock only runs while the hero is on screen and the tab is visible, and
  * it holds rather than skips when the network has not delivered the frames
- * ahead of it. A pause button satisfies WCAG 2.2.2 for motion that starts on
+ * ahead of it. The pause button satisfies WCAG 2.2.2 for motion that starts on
  * its own; there is still no prefers-reduced-motion branch, because Windows
  * Server, RDP sessions and many power-saving setups report reduced motion by
  * default, and visitors on those machines would only ever see a still.
@@ -39,18 +102,8 @@ const LOOP_FPS = 30;
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const introRef = useRef<(HTMLImageElement | null)[]>([]);
-  const loopRef = useRef<(HTMLImageElement | null)[]>([]);
-  const loopReadyRef = useRef(false);
-  const tierRef = useRef<SequenceTier>("scroll");
   const pausedRef = useRef(false);
-
-  /** Where playback is: milliseconds into the intro, then frames into the loop. */
-  const elapsedRef = useRef(0);
-  const inLoopRef = useRef(false);
-  const loopIndexRef = useRef(0);
-  const drawnRef = useRef<string>("");
+  const redrawRef = useRef<() => void>(() => {});
 
   const [ready, setReady] = useState(false);
   const [stageId, setStageId] = useState(STAGES[0].id);
@@ -59,90 +112,92 @@ export function HeroSequence() {
   const viewportWidth = useViewportWidth();
   const hydrated = viewportWidth !== null;
 
-  /* ---------------------------------------------------------------- drawing */
-
-  const paint = useCallback((img: HTMLImageElement, key: string) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvas.width) return;
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
-    const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-    drawnRef.current = key;
-  }, []);
-
-  /** Draws whatever the playhead points at, falling back to the nearest loaded frame. */
-  const render = useCallback(
-    (force = false) => {
-      if (inLoopRef.current && loopReadyRef.current) {
-        const i = loopIndexRef.current;
-        const img = loopRef.current[i];
-        if (img && (force || drawnRef.current !== `loop-${i}`)) paint(img, `loop-${i}`);
-        return;
-      }
-      const images = introRef.current;
-      const count = images.length;
-      if (!count) return;
-      // Until the loop is in memory the last intro frame stands in for it: it is
-      // the same face-up view as the loop's first frame.
-      const target = inLoopRef.current
-        ? count - 1
-        : Math.min(count - 1, Math.floor((elapsedRef.current / INTRO_MS) * count));
-      for (let step = 0; step < count; step++) {
-        const i = images[target - step] ? target - step : target + step;
-        const img = images[i];
-        if (!img) continue;
-        if (force || drawnRef.current !== `intro-${i}`) paint(img, `intro-${i}`);
-        return;
-      }
-    },
-    [paint],
-  );
-
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    // A 3x buffer costs fill rate for no visible gain on a sequence repainting 30 times a second.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.round(rect.width * dpr);
     const height = Math.round(rect.height * dpr);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
-      render(true);
+      redrawRef.current();
     }
-  }, [render]);
-
-  /* ------------------------------------------------------------ the machine */
+  }, []);
 
   useEffect(() => {
-    // Wait for the real width so a phone never starts loading the desktop tier.
+    // Wait for the real width so a phone never starts loading the desktop tiers.
     if (viewportWidth === null) return;
     const section = sectionRef.current;
-    if (!section) return;
+    const canvas = canvasRef.current;
+    if (!section || !canvas) return;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) return;
 
     // Sampled once per mount: resizing afterwards doesn't swap tiers mid-play.
-    const tier: SequenceTier = viewportWidth <= MOBILE_TIER_MAX_WIDTH ? "scroll-mobile" : "scroll";
-    tierRef.current = tier;
-    const count = frameCount(tier);
-    const loopCount = frameCount("rotate");
-    // A clean slate on every mount; React's development double-mount would
-    // otherwise inherit a torn-down run's state.
-    introRef.current = new Array(count).fill(null);
-    loopRef.current = new Array(loopCount).fill(null);
-    loopReadyRef.current = false;
-    elapsedRef.current = 0;
-    inLoopRef.current = false;
-    loopIndexRef.current = 0;
-    drawnRef.current = "";
-
+    const tiers = tiersFor(viewportWidth);
+    const intro = new FrameStore(frameCount(tiers.intro), false);
+    const loop = new FrameStore(frameCount(tiers.loop), true);
     let cancelled = false;
-    /** Frames 0..contiguous-1 are all in memory. */
+    /** Intro frames 0..contiguous-1 are all loaded. */
     let contiguous = 0;
+    let loopReady = false;
+
+    /** Playhead: ms into the intro, then ms into the turn. */
+    let introMs = 0;
+    let turnMs = 0;
+    let inLoop = false;
+    let lastStage = "";
+
+    /* -- drawing */
+
+    const paint = (source: CanvasImageSource, alpha: number) => {
+      const w = (source as { width: number }).width;
+      const h = (source as { height: number }).height;
+      const scale = Math.min(canvas.width / w, canvas.height / h);
+      const dw = w * scale;
+      const dh = h * scale;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(source, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    };
+
+    /** Frame `position` of `store`, cross-fading into the next when between two. */
+    const drawAt = (store: FrameStore, position: number) => {
+      const base = Math.floor(position);
+      const frac = position - base;
+      store.prepare(base);
+      const a = store.get(base) ?? nearest(store, base);
+      if (!a) return false;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#fafafa";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      paint(a, 1);
+      const b = frac > 0.02 ? store.get(base + 1) : null;
+      if (b) paint(b, frac);
+      ctx.globalAlpha = 1;
+      return true;
+    };
+
+    const nearest = (store: FrameStore, i: number) => {
+      for (let step = 1; step < store.count; step++) {
+        const found = store.get(i - step) ?? store.get(i + step);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const redraw = () => {
+      if (inLoop && loopReady) {
+        drawAt(loop, (turnMs / TURN_MS) * loop.count);
+      } else {
+        // Until the turn is in memory, the intro's last frame stands in for it:
+        // the same face-up view as the turn's first frame.
+        const last = intro.count - 1;
+        drawAt(intro, inLoop ? last : Math.min(last, (introMs / INTRO_MS) * last));
+      }
+    };
+    redrawRef.current = redraw;
 
     /* -- loading */
 
@@ -155,61 +210,47 @@ export function HeroSequence() {
         img.src = url;
       });
 
-    const loadIntro = async () => {
-      const first = await fetchFrame(frameUrl(tier, 0));
-      if (cancelled) return;
-      if (first) {
-        introRef.current[0] = first;
-        render(true);
-        setReady(true);
-      }
-      // In order, so playback can start as soon as its buffer is filled.
-      const queue = Array.from({ length: count - 1 }, (_, k) => k + 1);
+    const fetchAll = async (store: FrameStore, tier: typeof tiers.intro, first: number, onEach?: () => void) => {
+      const queue = Array.from({ length: store.count - first }, (_, k) => k + first);
       await Promise.all(
         Array.from({ length: LANES }, async () => {
           while (queue.length && !cancelled) {
             const i = queue.shift() as number;
-            // One retry, since a gap holds playback until loading finishes.
-            const img = (await fetchFrame(frameUrl(tier, i))) ?? (await fetchFrame(frameUrl(tier, i)));
-            if (cancelled) return;
-            introRef.current[i] = img;
-            while (contiguous < count && introRef.current[contiguous]) contiguous++;
+            // One retry: a gap holds intro playback until loading finishes.
+            store.images[i] = (await fetchFrame(frameUrl(tier, i))) ?? (await fetchFrame(frameUrl(tier, i)));
+            onEach?.();
           }
         }),
       );
-      if (cancelled) return;
-      // Frames that failed twice borrow their predecessor, so playback can pass them.
-      introRef.current = introRef.current.map((img, i, all) => img ?? all[i - 1] ?? all.find(Boolean) ?? null);
-      contiguous = introRef.current.every(Boolean) ? count : contiguous;
-      // The loop comes second, well before the intro reaches it on any
-      // reasonable connection.
-      if (!cancelled) void loadLoop();
+      // Frames that failed twice borrow a neighbour, so playback can pass them.
+      store.images = store.images.map((img, i, all) => img ?? all[i - 1] ?? all.find(Boolean) ?? null);
     };
 
-    const loadLoop = async () => {
-      const queue = Array.from({ length: loopCount }, (_, i) => i);
-      await Promise.all(
-        Array.from({ length: LANES }, async () => {
-          while (queue.length && !cancelled) {
-            const i = queue.shift() as number;
-            loopRef.current[i] = await fetchFrame(frameUrl("rotate", i));
-          }
-        }),
-      );
+    const load = async () => {
+      const first = await fetchFrame(frameUrl(tiers.intro, 0));
       if (cancelled) return;
-      // A missing frame would stutter the spin; borrow the previous one.
-      loopRef.current = loopRef.current.map((img, i, all) => img ?? all[i - 1] ?? all[0]);
-      // Play only once every frame has settled; a half-loaded loop reads as stutter.
-      loopReadyRef.current = loopRef.current.every(Boolean);
+      intro.images[0] = first;
+      contiguous = first ? 1 : 0;
+      redraw();
+      setReady(true);
+      await fetchAll(intro, tiers.intro, 1, () => {
+        while (contiguous < intro.count && intro.images[contiguous]) contiguous++;
+      });
+      if (cancelled) return;
+      if (intro.images.every(Boolean)) contiguous = intro.count;
+      // The turn comes second, well before the intro reaches it on any
+      // reasonable connection.
+      await fetchAll(loop, tiers.loop, 0);
+      if (cancelled) return;
+      // Play only once every frame is in; a half-loaded turn reads as stutter.
+      loopReady = loop.images.every(Boolean);
     };
 
     /* -- the clock */
 
     let raf = 0;
     let last = 0;
-    let loopCarry = 0;
     let onScreen = false;
-    let lastStage = "";
 
     const tick = (now: number) => {
       raf = 0;
@@ -218,33 +259,26 @@ export function HeroSequence() {
       last = now;
 
       if (!pausedRef.current) {
-        if (!inLoopRef.current) {
+        if (!inLoop) {
           // Hold, rather than skip ahead, until the next second of frames is in.
-          const next = elapsedRef.current + dt;
-          const needed = Math.min(count, Math.ceil(((next + BUFFER_MS) / INTRO_MS) * count));
-          if (contiguous >= needed) elapsedRef.current = next;
-          if (elapsedRef.current >= INTRO_MS) {
-            elapsedRef.current = INTRO_MS;
-            inLoopRef.current = true;
-            loopIndexRef.current = 0;
-            loopCarry = 0;
+          const next = introMs + dt;
+          const needed = Math.min(intro.count, Math.ceil(((next + BUFFER_MS) / INTRO_MS) * intro.count));
+          if (contiguous >= needed) introMs = next;
+          if (introMs >= INTRO_MS) {
+            introMs = INTRO_MS;
+            inLoop = true;
           }
-          const stage = stageAt(Math.min(elapsedRef.current / INTRO_MS, 1));
+          const stage = stageAt(Math.min(introMs / INTRO_MS, 1));
           if (stage.id !== lastStage) {
             lastStage = stage.id;
             setStageId(stage.id);
           }
-        } else if (loopReadyRef.current) {
-          loopCarry += dt;
-          const step = 1000 / LOOP_FPS;
-          if (loopCarry >= step) {
-            // Cap catch-up so a dropped burst of frames does not lurch the stone.
-            const advance = Math.min(Math.floor(loopCarry / step), 3);
-            loopCarry -= advance * step;
-            loopIndexRef.current = (loopIndexRef.current + advance) % loopCount;
-          }
+        } else if (loopReady) {
+          turnMs = (turnMs + dt) % TURN_MS;
+          // The intro's frames are no longer needed once the turn is playing.
+          intro.close();
         }
-        render();
+        redraw();
       }
       raf = requestAnimationFrame(tick);
     };
@@ -268,7 +302,7 @@ export function HeroSequence() {
         onScreen = entries[entries.length - 1].isIntersecting;
         if (onScreen && !loading) {
           loading = true;
-          void loadIntro();
+          void load();
         }
         if (onScreen) start();
         else stop();
@@ -278,12 +312,11 @@ export function HeroSequence() {
     io.observe(section);
 
     // The pause button restarts the clock without waiting for another observer callback.
-    const resume = () => start();
-    section.addEventListener("hero:resume", resume);
+    section.addEventListener("hero:resume", start);
 
     resizeCanvas();
     const ro = new ResizeObserver(resizeCanvas);
-    if (canvasRef.current) ro.observe(canvasRef.current);
+    ro.observe(canvas);
 
     return () => {
       cancelled = true;
@@ -291,18 +324,19 @@ export function HeroSequence() {
       io.disconnect();
       ro.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
-      section.removeEventListener("hero:resume", resume);
+      section.removeEventListener("hero:resume", start);
+      intro.close();
+      loop.close();
+      redrawRef.current = () => {};
     };
-    // `hydrated`, not the width: the tier is chosen once, on the first real measurement.
-  }, [hydrated, render, resizeCanvas]);
+    // `hydrated`, not the width: the tiers are chosen once, on the first real measurement.
+  }, [hydrated, resizeCanvas]);
 
   const togglePaused = () => {
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
     if (!pausedRef.current) sectionRef.current?.dispatchEvent(new Event("hero:resume"));
   };
-
-  /* ----------------------------------------------------------------- render */
 
   const activeStage = STAGES.find((s) => s.id === stageId) ?? STAGES[0];
 
@@ -319,7 +353,7 @@ export function HeroSequence() {
           </div>
 
           <div className="relative order-1 lg:order-2">
-            <div className="relative mx-auto aspect-square w-full max-w-[min(64vh,620px)] overflow-hidden rounded-[36px] border border-hairline bg-porcelain">
+            <div className="relative mx-auto aspect-square w-full max-w-[min(76vh,720px)] overflow-hidden rounded-[36px] border border-hairline bg-porcelain">
               <canvas
                 ref={canvasRef}
                 className="h-full w-full"

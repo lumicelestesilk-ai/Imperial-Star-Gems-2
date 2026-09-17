@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { frameCount, frameUrl } from "@/lib/sequence";
+import { MOBILE_TIER_MAX_WIDTH, frameCount, frameUrl, type SequenceTier } from "@/lib/sequence";
 
-/** Playback rate. At 30 fps a 333-frame turn takes about eleven seconds. */
-const FPS = 30;
+/** Playback rate. At 24 fps the 167-frame turn takes about seven seconds, as in the hero. */
+const FPS = 24;
 /** Parallel image requests while preloading. */
 const LANES = 6;
 /** After a drag or key scrub, wait this long before autoplay picks back up. */
@@ -29,6 +29,8 @@ const wrap = (n: number, count: number) => ((n % count) + count) % count;
  */
 export function DiamondRotation({ label, className }: { label: string; className?: string }) {
   const count = frameCount("rotate");
+  // Both turntable tiers hold the same frames; narrow screens fetch the smaller one.
+  const tierRef = useRef<SequenceTier>("rotate");
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const sliderRef = useRef<HTMLDivElement | null>(null);
@@ -118,6 +120,7 @@ export function DiamondRotation({ label, className }: { label: string; className
     if (!root) return;
 
     imagesRef.current = new Array(count).fill(null);
+    tierRef.current = window.innerWidth <= MOBILE_TIER_MAX_WIDTH ? "rotate-mobile" : "rotate";
     let cancelled = false;
     let started = false;
     let done = 0;
@@ -140,7 +143,7 @@ export function DiamondRotation({ label, className }: { label: string; className
           finish();
         };
         img.onerror = finish;
-        img.src = frameUrl("rotate", i);
+        img.src = frameUrl(tierRef.current, i);
       });
 
     const preload = async () => {

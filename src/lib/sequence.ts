@@ -11,23 +11,36 @@ import manifest from "@/data/sequence-manifest.json";
 const BASE = (process.env.NEXT_PUBLIC_SEQUENCE_BASE_URL || "/sequence").replace(/\/+$/, "");
 
 /**
- * Two independent sequences, each in its own folder:
+ * Two independent sequences, each at two sizes, in their own folders. Built by
+ * scripts/convert-sequence.mjs, which crops every frame to the stone and keeps
+ * every second source frame (the hero cross-fades between them):
  *
- *   scroll/         00001.webp – 00700.webp  the hero cutting sequence (desktop)
- *   scroll-mobile/  every third frame of it, smaller, for narrow screens
- *   rotate/         00001.webp – 00NNN.webp  looping 360° turn of the stone
+ *   scroll/         the hero cutting sequence, 1440px
+ *   scroll-mobile/  the same frames, 720px, for narrow screens
+ *   rotate/         looping 360° turn of the finished stone, 1440px
+ *   rotate-mobile/  the same turn, 720px
  *
  * The folder names date from when the hero was scrubbed by scrolling; it now
  * plays on a timer, but the names stay so deployed CDN paths keep working.
  */
-export type SequenceTier = "scroll" | "scroll-mobile" | "rotate";
+export type SequenceTier = "scroll" | "scroll-mobile" | "rotate" | "rotate-mobile";
+
+/** At or below this viewport width the 720px tiers are used. */
+export const MOBILE_TIER_MAX_WIDTH = 900;
+
+/** The intro and turntable tiers for a viewport, chosen once when a player mounts. */
+export function tiersFor(viewportWidth: number): { intro: SequenceTier; loop: SequenceTier } {
+  return viewportWidth <= MOBILE_TIER_MAX_WIDTH
+    ? { intro: "scroll-mobile", loop: "rotate-mobile" }
+    : { intro: "scroll", loop: "rotate" };
+}
 
 export const SEQUENCE: Record<SequenceTier, { frames: number; width: number }> = manifest.tiers;
 
 /**
  * Files on disk are numbered from 00001, matching the source renders. Code
  * works in 0-based indices everywhere, so the +1 happens here and only here —
- * index 0 is 00001.webp, index 699 is 00700.webp.
+ * index 0 is 00001.webp.
  */
 export function frameUrl(tier: SequenceTier, index: number): string {
   return `${BASE}/${tier}/${String(index + 1).padStart(5, "0")}.webp`;
