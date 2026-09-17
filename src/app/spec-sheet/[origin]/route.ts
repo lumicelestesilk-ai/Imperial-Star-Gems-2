@@ -1,13 +1,13 @@
-import { describeFilters, filterStones, filtersFromParams } from "@/lib/catalog-filter";
+import { describeFilters, filterStones, filtersFromParams, stoneBounds } from "@/lib/catalog-filter";
 import {
   describeJewelryFilters,
   filterJewelry,
-  jewelryCaratBounds,
+  jewelryBounds,
   jewelryFiltersFromParams,
 } from "@/lib/jewelry";
 import { JEWELRY_SUMMARIES } from "@/lib/real-jewelry";
 import { pdfResponse, renderCatalogueSheet, renderJewelryCatalogueSheet } from "@/lib/spec-sheet";
-import { caratBounds, stonesFor } from "@/lib/stones";
+import { stonesFor } from "@/lib/stones";
 
 export const runtime = "nodejs";
 
@@ -21,10 +21,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ orig
   const preparedAt = new Date();
 
   if (slug === "jewelry") {
-    const bounds = jewelryCaratBounds(JEWELRY_SUMMARIES);
+    const bounds = jewelryBounds(JEWELRY_SUMMARIES);
     const { filters, sort } = jewelryFiltersFromParams(search, bounds);
     const pdf = renderJewelryCatalogueSheet({
-      items: filterJewelry(JEWELRY_SUMMARIES, filters, sort),
+      items: filterJewelry(JEWELRY_SUMMARIES, filters, sort, bounds),
       summary: describeJewelryFilters(filters, sort, bounds),
       preparedAt,
     });
@@ -35,11 +35,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ orig
   if (!origin) return new Response("Not found", { status: 404 });
 
   const all = stonesFor(origin);
-  const bounds = caratBounds(all);
+  const bounds = stoneBounds(all);
   const { filters, sort } = filtersFromParams(search, bounds);
 
   const pdf = renderCatalogueSheet({
-    stones: filterStones(all, filters, sort),
+    stones: filterStones(all, filters, sort, bounds),
     origin,
     summary: describeFilters(filters, sort, bounds),
     preparedAt,

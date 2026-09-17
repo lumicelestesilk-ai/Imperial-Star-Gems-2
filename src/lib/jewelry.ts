@@ -145,72 +145,194 @@ export function jewelSpecs(jewel: JewelSummary): [string, string][] {
 
 /* ---------------------------------------------------------------- filtering */
 
-/** Same options as the stone catalogues; not imported from catalog-filter, which pulls in the stone lists. */
+/** The stone catalogues' general options plus jewelry's own; not imported from catalog-filter, which pulls in the stone lists. */
 export const SORTS = {
   recommended: "Recommended",
-  recent: "Recently added",
-  caratDesc: "Carat: high to low",
-  caratAsc: "Carat: low to high",
+  recent: "Newest first",
+  oldest: "Oldest first",
+  caratDesc: "Total carat: high to low",
+  caratAsc: "Total carat: low to high",
+  centerDesc: "Centre stone: largest first",
+  centerAsc: "Centre stone: smallest first",
+  countDesc: "Diamond count: most first",
+  countAsc: "Diamond count: fewest first",
+  nameAsc: "Name: A to Z",
 } as const;
 
 export type Sort = keyof typeof SORTS;
 
+export const SORT_GROUPS: { label: string; sorts: Sort[] }[] = [
+  { label: "General", sorts: ["recommended", "recent", "oldest", "nameAsc"] },
+  { label: "Total carat", sorts: ["caratDesc", "caratAsc"] },
+  { label: "Stones", sorts: ["centerDesc", "centerAsc", "countDesc", "countAsc"] },
+];
+
+/** Whether a piece is set with one shape throughout or a mix. */
+export const LAYOUTS = ["single", "mixed"] as const;
+export type Layout = (typeof LAYOUTS)[number];
+export const LAYOUT_NAME: Record<Layout, string> = { single: "One shape", mixed: "Mixed shapes" };
+const layoutOf = (j: Pick<Jewel, "shapes">): Layout => (j.shapes.length > 1 ? "mixed" : "single");
+
+export const JEWELRY_RANGE_KEYS = ["carat", "center", "count"] as const;
+export type JewelryRangeKey = (typeof JEWELRY_RANGE_KEYS)[number];
+export type JewelryBounds = Record<JewelryRangeKey, [number, number]>;
+
 export type JewelryFilters = {
+  query: string;
   categories: JewelryCategory[];
   shapes: ShapeSlug[];
+  layouts: Layout[];
   metals: Metal[];
   purities: Purity[];
-  caratMin: number;
-  caratMax: number;
+  ranges: JewelryBounds;
 };
+
+export type JewelryListKey = "categories" | "shapes" | "layouts" | "metals" | "purities";
+
+function jewelryRangeValue(j: JewelSummary, key: JewelryRangeKey): number | undefined {
+  if (key === "carat") return j.carat;
+  if (key === "center") return j.centerCarat;
+  return j.diamondCount;
+}
+
+/** Bounds of each numeric filter for a set, rounded outwards to clean input stops. */
+export function jewelryBounds(items: JewelSummary[]): JewelryBounds {
+  const extent = (key: JewelryRangeKey, step: number): [number, number] => {
+    const values = items.map((j) => jewelryRangeValue(j, key)).filter((v): v is number => v !== undefined);
+    if (!values.length) return [0, 0];
+    return [
+      Number((Math.floor(Math.min(...values) / step) * step).toFixed(2)),
+      Number((Math.ceil(Math.max(...values) / step) * step).toFixed(2)),
+    ];
+  };
+  return { carat: extent("carat", 0.1), center: extent("center", 0.1), count: extent("count", 1) };
+}
+
+export function emptyJewelryFilters(bounds: JewelryBounds): JewelryFilters {
+  return { query: "", categories: [], shapes: [], layouts: [], metals: [], purities: [], ranges: { ...bounds } };
+}
+
+export function jewelryRangeActive(filters: JewelryFilters, bounds: JewelryBounds, key: JewelryRangeKey) {
+  return filters.ranges[key][0] !== bounds[key][0] || filters.ranges[key][1] !== bounds[key][1];
+}
+
+const JEWELRY_FACETS: { [K in JewelryListKey]: (j: JewelSummary) => readonly string[] } = {
+  categories: (j) => [j.category],
+  shapes: (j) => j.shapes,
+  layouts: (j) => [layoutOf(j)],
+  metals: (j) => j.metals,
+  purities: (j) => j.purities,
+};
+
+function jewelMatches(j: JewelSummary, filters: JewelryFilters, bounds: JewelryBounds, skip?: JewelryListKey) {
+  const terms = filters.query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length) {
+    const hay = [j.sku, j.name, CATEGORY_NAME[j.category], shapesLine(j), metalsLine(j)].join(" ").toLowerCase();
+    if (!terms.every((t) => hay.includes(t))) return false;
+  }
+  for (const key of Object.keys(JEWELRY_FACETS) as JewelryListKey[]) {
+    const wanted = filters[key] as readonly string[];
+    if (key === skip || !wanted.length) continue;
+    if (!JEWELRY_FACETS[key](j).some((v) => wanted.includes(v))) return false;
+  }
+  for (const key of JEWELRY_RANGE_KEYS) {
+    if (!jewelryRangeActive(filters, bounds, key)) continue;
+    const value = jewelryRangeValue(j, key);
+    const [lo, hi] = filters.ranges[key];
+    // A narrowed range drops pieces that don't state the value.
+    if (value === undefined || value < lo - 1e-9 || value > hi + 1e-9) return false;
+  }
+  return true;
+}
+
+/** Per-option counts for every facet, each ignoring its own selection. */
+export function jewelryFacetCounts(items: JewelSummary[], filters: JewelryFilters, bounds: JewelryBounds) {
+  const out = {} as Record<JewelryListKey, Record<string, number>>;
+  for (const key of Object.keys(JEWELRY_FACETS) as JewelryListKey[]) {
+    const counts: Record<string, number> = {};
+    for (const j of items) {
+      if (!jewelMatches(j, filters, bounds, key)) continue;
+      for (const v of new Set(JEWELRY_FACETS[key](j))) counts[v] = (counts[v] ?? 0) + 1;
+    }
+    out[key] = counts;
+  }
+  return out;
+}
 
 /** Filtering lives here, not in the component, so the PDF sheet lists exactly what was on screen. */
 export function filterJewelry<T extends JewelSummary>(
   items: T[],
   filters: JewelryFilters,
   sort: Sort,
+  bounds: JewelryBounds,
 ): T[] {
-  const matched = items.filter((j) => {
-    if (filters.categories.length && !filters.categories.includes(j.category)) return false;
-    if (filters.shapes.length && !j.shapes.some((s) => filters.shapes.includes(s))) return false;
-    if (filters.metals.length && !j.metals.some((m) => filters.metals.includes(m))) return false;
-    if (filters.purities.length && !j.purities.some((p) => filters.purities.includes(p))) return false;
-    if (j.carat < filters.caratMin || j.carat > filters.caratMax) return false;
-    return true;
-  });
-  if (sort === "recent") return matched.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
-  if (sort === "caratDesc") return matched.sort((a, b) => b.carat - a.carat);
-  if (sort === "caratAsc") return matched.sort((a, b) => a.carat - b.carat);
-  // Recommended: featured pieces first, otherwise stock order.
-  return matched.sort((a, b) => Number(b.featured) - Number(a.featured));
+  const matched = items.filter((j) => jewelMatches(j, filters, bounds));
+  // Pieces that don't state the sorted value go last either way.
+  const by = (key: (j: T) => number | undefined, dir: 1 | -1) => (a: T, b: T) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka === undefined || kb === undefined) return Number(ka === undefined) - Number(kb === undefined);
+    return (ka - kb) * dir || b.carat - a.carat;
+  };
+  switch (sort) {
+    case "recent":
+      return matched.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+    case "oldest":
+      return matched.sort((a, b) => a.addedAt.localeCompare(b.addedAt));
+    case "caratDesc":
+      return matched.sort((a, b) => b.carat - a.carat);
+    case "caratAsc":
+      return matched.sort((a, b) => a.carat - b.carat);
+    case "centerDesc":
+      return matched.sort(by((j) => j.centerCarat, -1));
+    case "centerAsc":
+      return matched.sort(by((j) => j.centerCarat, 1));
+    case "countDesc":
+      return matched.sort(by((j) => j.diamondCount, -1));
+    case "countAsc":
+      return matched.sort(by((j) => j.diamondCount, 1));
+    case "nameAsc":
+      return matched.sort((a, b) => a.name.localeCompare(b.name));
+    default:
+      // Recommended: featured pieces first, otherwise stock order.
+      return matched.sort((a, b) => Number(b.featured) - Number(a.featured));
+  }
 }
 
-/** Carat bounds of a set, rounded outwards to clean input stops. */
-export function jewelryCaratBounds(items: Pick<Jewel, "carat">[]): [number, number] {
-  const values = items.map((j) => j.carat);
-  return [Math.floor(Math.min(...values) * 10) / 10, Math.ceil(Math.max(...values) * 10) / 10];
-}
+const JEWELRY_PARAM: Record<JewelryListKey, string> = {
+  categories: "type",
+  shapes: "shape",
+  layouts: "layout",
+  metals: "metal",
+  purities: "purity",
+};
 
-export function countBy<T extends string>(items: JewelSummary[], key: (j: JewelSummary) => T[]) {
-  return items.reduce<Partial<Record<T, number>>>((acc, j) => {
-    for (const value of new Set(key(j))) acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
-}
+const JEWELRY_ALLOWED: Record<JewelryListKey, readonly string[]> = {
+  categories: JEWELRY_CATEGORIES,
+  shapes: SHAPES.map((s) => s.slug),
+  layouts: LAYOUTS,
+  metals: METALS,
+  purities: PURITIES,
+};
+
+const JEWELRY_RANGE_PARAM: Record<JewelryRangeKey, [string, string]> = {
+  carat: ["cmin", "cmax"],
+  center: ["ccmin", "ccmax"],
+  count: ["nmin", "nmax"],
+};
 
 /** Only non-default values are written, so an unfiltered sheet has a bare URL. */
-export function jewelryFiltersToParams(
-  filters: JewelryFilters,
-  sort: Sort,
-  bounds: [number, number],
-) {
+export function jewelryFiltersToParams(filters: JewelryFilters, sort: Sort, bounds: JewelryBounds) {
   const params = new URLSearchParams();
-  if (filters.categories.length) params.set("type", filters.categories.join(","));
-  if (filters.shapes.length) params.set("shape", filters.shapes.join(","));
-  if (filters.metals.length) params.set("metal", filters.metals.join(","));
-  if (filters.purities.length) params.set("purity", filters.purities.join(","));
-  if (filters.caratMin !== bounds[0]) params.set("cmin", String(filters.caratMin));
-  if (filters.caratMax !== bounds[1]) params.set("cmax", String(filters.caratMax));
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  for (const key of Object.keys(JEWELRY_PARAM) as JewelryListKey[]) {
+    if (filters[key].length) params.set(JEWELRY_PARAM[key], filters[key].join(","));
+  }
+  for (const key of JEWELRY_RANGE_KEYS) {
+    const [lo, hi] = filters.ranges[key];
+    if (lo !== bounds[key][0]) params.set(JEWELRY_RANGE_PARAM[key][0], String(lo));
+    if (hi !== bounds[key][1]) params.set(JEWELRY_RANGE_PARAM[key][1], String(hi));
+  }
   if (sort !== "recommended") params.set("sort", sort);
   return params;
 }
@@ -227,43 +349,56 @@ export function pickList<T extends string>(
 /** The inverse of `jewelryFiltersToParams`. */
 export function jewelryFiltersFromParams(
   params: URLSearchParams,
-  bounds: [number, number],
+  bounds: JewelryBounds,
 ): { filters: JewelryFilters; sort: Sort } {
-  const carat = (key: string, fallback: number) => {
-    const value = Number.parseFloat(params.get(key) ?? "");
-    return Number.isFinite(value) ? value : fallback;
-  };
+  const filters = emptyJewelryFilters(bounds);
+  filters.query = (params.get("q") ?? "").slice(0, 80);
+  for (const key of Object.keys(JEWELRY_PARAM) as JewelryListKey[]) {
+    (filters[key] as string[]) = [...new Set(pickList(params.get(JEWELRY_PARAM[key]), JEWELRY_ALLOWED[key]))];
+  }
+  for (const key of JEWELRY_RANGE_KEYS) {
+    const [lo, hi] = bounds[key];
+    const read = (name: string, fallback: number) => {
+      const value = Number.parseFloat(params.get(name) ?? "");
+      return Number.isFinite(value) ? Math.min(hi, Math.max(lo, value)) : fallback;
+    };
+    filters.ranges[key] = [read(JEWELRY_RANGE_PARAM[key][0], lo), read(JEWELRY_RANGE_PARAM[key][1], hi)];
+  }
   const sort = (Object.keys(SORTS) as Sort[]).find((key) => key === params.get("sort"));
-  return {
-    filters: {
-      categories: pickList(params.get("type"), JEWELRY_CATEGORIES),
-      shapes: pickList(
-        params.get("shape"),
-        SHAPES.map((s) => s.slug),
-      ),
-      metals: pickList(params.get("metal"), METALS),
-      purities: pickList(params.get("purity"), PURITIES),
-      caratMin: carat("cmin", bounds[0]),
-      caratMax: carat("cmax", bounds[1]),
-    },
-    sort: sort ?? "recommended",
+  return { filters, sort: sort ?? "recommended" };
+}
+
+const JEWELRY_RANGE_LABEL: Record<JewelryRangeKey, (lo: number, hi: number) => string> = {
+  carat: (lo, hi) => `${lo.toFixed(2)}–${hi.toFixed(2)} ct total`,
+  center: (lo, hi) => `Centre ${lo.toFixed(2)}–${hi.toFixed(2)} ct`,
+  count: (lo, hi) => `${lo}–${hi} diamonds`,
+};
+
+/** Every active constraint as a removable label — used for the pills on screen and the sheet header. */
+export function activeJewelryFilterList(filters: JewelryFilters, bounds: JewelryBounds) {
+  const items: { id: string; label: string; key: JewelryListKey | JewelryRangeKey | "query"; value?: string }[] = [];
+  if (filters.query.trim()) items.push({ id: "q", label: `“${filters.query.trim()}”`, key: "query" });
+  const name: Record<JewelryListKey, (v: string) => string> = {
+    categories: (v) => CATEGORY_PLURAL[v as JewelryCategory],
+    shapes: (v) => SHAPE_BY_SLUG[v as ShapeSlug].name,
+    layouts: (v) => LAYOUT_NAME[v as Layout],
+    metals: (v) => METAL_NAME[v as Metal],
+    purities: (v) => v,
   };
+  for (const key of Object.keys(JEWELRY_PARAM) as JewelryListKey[]) {
+    for (const value of filters[key]) items.push({ id: `${key}:${value}`, label: name[key](value), key, value });
+  }
+  for (const key of JEWELRY_RANGE_KEYS) {
+    if (jewelryRangeActive(filters, bounds, key)) {
+      items.push({ id: key, label: JEWELRY_RANGE_LABEL[key](...filters.ranges[key]), key });
+    }
+  }
+  return items;
 }
 
 /** One line for the sheet header, so a forwarded copy says what it was filtered to. */
-export function describeJewelryFilters(
-  filters: JewelryFilters,
-  sort: Sort,
-  bounds: [number, number],
-): string {
-  const parts: string[] = [];
-  if (filters.categories.length) parts.push(filters.categories.map((c) => CATEGORY_PLURAL[c]).join(", "));
-  if (filters.shapes.length) parts.push(filters.shapes.map((s) => SHAPE_BY_SLUG[s].name).join(", "));
-  if (filters.caratMin !== bounds[0] || filters.caratMax !== bounds[1]) {
-    parts.push(`${filters.caratMin.toFixed(2)}–${filters.caratMax.toFixed(2)} ct`);
-  }
-  if (filters.metals.length) parts.push(filters.metals.map((m) => METAL_NAME[m]).join(", "));
-  if (filters.purities.length) parts.push(filters.purities.join(", "));
+export function describeJewelryFilters(filters: JewelryFilters, sort: Sort, bounds: JewelryBounds): string {
+  const parts = activeJewelryFilterList(filters, bounds).map((i) => i.label);
   const scope = parts.length ? `Filtered to ${parts.join("  •  ")}` : "Full catalogue, no filters";
   return `${scope}  •  Sorted ${SORTS[sort].toLowerCase()}`;
 }

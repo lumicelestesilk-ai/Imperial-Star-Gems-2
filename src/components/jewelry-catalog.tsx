@@ -1,109 +1,140 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { JewelryGrid } from "./jewelry-grid";
-import { CaratRange, ChipSet, ShapeFilter } from "./catalog-controls";
+import {
+  ActiveFilters,
+  ChipSet,
+  FilterPanel,
+  MoreFilters,
+  NumberRange,
+  SearchBox,
+  ShapeFilter,
+  SortSelect,
+} from "./catalog-controls";
 import {
   CATEGORY_PLURAL,
   JEWELRY_CATEGORIES,
+  JEWELRY_RANGE_KEYS,
+  LAYOUTS,
+  LAYOUT_NAME,
   METAL_NAME,
   METALS,
   PURITIES,
   SORTS,
-  countBy,
+  SORT_GROUPS,
+  activeJewelryFilterList,
+  emptyJewelryFilters,
   filterJewelry,
-  jewelryCaratBounds,
+  jewelryBounds,
+  jewelryFacetCounts,
+  jewelryFiltersFromParams,
   jewelryFiltersToParams,
   type JewelSummary,
   type JewelryFilters,
+  type JewelryListKey,
+  type JewelryRangeKey,
   type Sort,
 } from "@/lib/jewelry";
 
 const PAGE = 12;
 
-type ListKey = "categories" | "shapes" | "metals" | "purities";
-
 /** The stone Catalog's layout and behaviour, filtered on jewelry's own attributes. */
 export function JewelryCatalog({
   items,
-  initial,
+  initialQuery = "",
   notice,
 }: {
   items: JewelSummary[];
-  /** Opening selection, e.g. from `?type=ring`. */
-  initial?: Partial<Pick<JewelryFilters, ListKey>>;
+  /** The page's query string, e.g. `type=ring`; filters and sort round-trip through it. */
+  initialQuery?: string;
   notice?: string;
 }) {
-  const [min, max] = useMemo(() => jewelryCaratBounds(items), [items]);
-  const counts = useMemo(
-    () => ({
-      categories: countBy(items, (j) => [j.category]),
-      shapes: countBy(items, (j) => j.shapes),
-      metals: countBy(items, (j) => j.metals),
-      purities: countBy(items, (j) => j.purities),
-    }),
-    [items],
-  );
+  const bounds = useMemo(() => jewelryBounds(items), [items]);
+  const empty = useMemo(() => emptyJewelryFilters(bounds), [bounds]);
+  const [initial] = useState(() => jewelryFiltersFromParams(new URLSearchParams(initialQuery), bounds));
 
-  const empty: JewelryFilters = useMemo(
-    () => ({ categories: [], shapes: [], metals: [], purities: [], caratMin: min, caratMax: max }),
-    [min, max],
-  );
-
-  const [filters, setFilters] = useState<JewelryFilters>(() => ({ ...empty, ...initial }));
+  const [filters, setFilters] = useState<JewelryFilters>(initial.filters);
+  const [sort, setSortState] = useState<Sort>(initial.sort);
   const [visible, setVisible] = useState(PAGE);
-  const [sort, setSort] = useState<Sort>("recommended");
 
-  function toggle<K extends ListKey>(key: K, value: JewelryFilters[K][number]) {
-    setFilters((prev) => {
-      const list = prev[key] as JewelryFilters[K][number][];
+  const update = useCallback((change: (prev: JewelryFilters) => JewelryFilters) => {
+    setFilters(change);
+    setVisible(PAGE);
+  }, []);
+
+  function toggle<K extends JewelryListKey>(key: K, value: JewelryFilters[K][number]) {
+    update((prev) => {
+      const list = prev[key] as string[];
       const next = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
       return { ...prev, [key]: next };
     });
+  }
+
+  const setRange = (key: JewelryRangeKey) => (value: [number, number]) =>
+    update((prev) => ({ ...prev, ranges: { ...prev.ranges, [key]: value } }));
+
+  const setQuery = useCallback((query: string) => update((prev) => ({ ...prev, query })), [update]);
+
+  function setSort(next: Sort) {
+    setSortState(next);
     setVisible(PAGE);
   }
 
-  function setCarat(which: "caratMin" | "caratMax", raw: string) {
-    const value = Number.parseFloat(raw);
-    setFilters((prev) => ({ ...prev, [which]: Number.isFinite(value) ? value : prev[which] }));
-    setVisible(PAGE);
-  }
+  const results = useMemo(
+    () => filterJewelry(items, filters, sort, bounds),
+    [items, filters, sort, bounds],
+  );
+  const counts = useMemo(() => jewelryFacetCounts(items, filters, bounds), [items, filters, bounds]);
+  const active = activeJewelryFilterList(filters, bounds);
+  const moreActive = active.filter((a) => a.key === "layouts" || a.key === "center" || a.key === "count").length;
 
-  const results = useMemo(() => filterJewelry(items, filters, sort), [items, filters, sort]);
-
+  const query = jewelryFiltersToParams(filters, sort, bounds).toString();
   // The sheet covers every matching piece, not just the page shown so far.
-  const query = jewelryFiltersToParams(filters, sort, [min, max]).toString();
   const sheetHref = `/spec-sheet/jewelry${query ? `?${query}` : ""}`;
 
-  const activeCount =
-    filters.categories.length +
-    filters.shapes.length +
-    filters.metals.length +
-    filters.purities.length +
-    (filters.caratMin !== min || filters.caratMax !== max ? 1 : 0);
+  // Keep the address bar in step so the current view can be bookmarked or shared.
+  useEffect(() => {
+    const url = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(window.history.state, "", url);
+    }
+  }, [query]);
+
+  function remove(id: string) {
+    const item = active.find((a) => a.id === id);
+    if (!item) return;
+    if (item.key === "query") return setQuery("");
+    if ((JEWELRY_RANGE_KEYS as readonly string[]).includes(item.key)) {
+      const key = item.key as JewelryRangeKey;
+      return setRange(key)(bounds[key]);
+    }
+    toggle(item.key as JewelryListKey, item.value as never);
+  }
+
+  const clearAll = () => update(() => empty);
 
   // Re-keying the grid on the filter signature replays the entry transition.
   const signature = JSON.stringify([filters, sort]);
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[280px_1fr] lg:gap-12">
-      <aside className="lg:sticky lg:top-[96px] lg:h-fit">
+    <div className="grid gap-10 lg:grid-cols-[300px_1fr] lg:gap-12">
+      <FilterPanel activeCount={active.length}>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-2xl">Filter</h2>
-          {activeCount > 0 ? (
+          {active.length > 0 ? (
             <button
               type="button"
-              onClick={() => {
-                setFilters(empty);
-                setVisible(PAGE);
-              }}
+              onClick={clearAll}
               className="text-[13px] text-ink-muted underline underline-offset-4 transition-colors duration-200 hover:text-ink"
             >
-              Clear {activeCount}
+              Clear {active.length}
             </button>
           ) : null}
         </div>
+
+        <SearchBox value={filters.query} placeholder="Search name or SKU" onChange={setQuery} />
 
         <ChipSet
           label="Type"
@@ -120,11 +151,11 @@ export function JewelryCatalog({
           onToggle={(slug) => toggle("shapes", slug)}
         />
 
-        <CaratRange
+        <NumberRange
           label="Total carat"
-          bounds={[min, max]}
-          value={[filters.caratMin, filters.caratMax]}
-          onChange={setCarat}
+          bounds={bounds.carat}
+          value={filters.ranges.carat}
+          onChange={setRange("carat")}
         />
 
         <ChipSet
@@ -142,30 +173,45 @@ export function JewelryCatalog({
           onToggle={(v) => toggle("purities", v)}
           counts={counts.purities}
         />
-      </aside>
+
+        <MoreFilters activeCount={moreActive}>
+          <ChipSet
+            label="Stone layout"
+            options={LAYOUTS}
+            selected={filters.layouts}
+            onToggle={(v) => toggle("layouts", v)}
+            optionLabel={(v) => LAYOUT_NAME[v]}
+            counts={counts.layouts}
+          />
+          <NumberRange
+            label="Centre stone"
+            unit="ct"
+            bounds={bounds.center}
+            value={filters.ranges.center}
+            onChange={setRange("center")}
+          />
+          <NumberRange
+            label="Diamond count"
+            step={1}
+            bounds={bounds.count}
+            value={filters.ranges.count}
+            onChange={setRange("count")}
+          />
+          <p className="mt-2 text-[11px] text-ink-muted">
+            Narrowing either range leaves out pieces whose listing doesn&rsquo;t state it.
+          </p>
+        </MoreFilters>
+      </FilterPanel>
 
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-hairline pb-5">
           <p aria-live="polite" className="text-[15px]">
             {results.length} {results.length === 1 ? "piece" : "pieces"}
+            {results.length !== items.length ? (
+              <span className="text-ink-muted"> of {items.length}</span>
+            ) : null}
           </p>
-          <label className="flex items-center gap-2 text-[13px] text-ink-muted">
-            Sort
-            <select
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value as Sort);
-                setVisible(PAGE);
-              }}
-              className="rounded-[12px] border border-hairline bg-porcelain px-3 py-2 text-[15px] text-ink transition-colors duration-200 focus:border-ink"
-            >
-              {(Object.keys(SORTS) as Sort[]).map((key) => (
-                <option key={key} value={key}>
-                  {SORTS[key]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SortSelect value={sort} labels={SORTS} groups={SORT_GROUPS} onChange={setSort} />
           {results.length > 0 ? (
             <a
               href={sheetHref}
@@ -178,12 +224,14 @@ export function JewelryCatalog({
           {notice ? <p className="w-full text-[13px] text-ink-muted">{notice}</p> : null}
         </div>
 
+        <ActiveFilters items={active} onRemove={remove} onClear={clearAll} />
+
         {results.length === 0 ? (
           <div className="mt-10 rounded-[22px] border border-hairline bg-panel p-8">
             <h3 className="font-display text-2xl">Nothing matches that combination</h3>
             <p className="measure mt-2 text-[15px] text-ink-muted-panel">
-              Widen the carat range or clear a filter. We also make to order, so tell us the piece
-              you have in mind and we will quote for it.
+              Widen a range or remove one of the filters above. We also make to order, so tell us
+              the piece you have in mind and we will quote for it.
             </p>
           </div>
         ) : (
@@ -202,7 +250,10 @@ export function JewelryCatalog({
         )}
 
         {visible < results.length ? (
-          <div className="mt-10 flex justify-center">
+          <div className="mt-10 flex flex-col items-center gap-3">
+            <p className="text-[13px] text-ink-muted">
+              Showing {visible} of {results.length}
+            </p>
             <button
               type="button"
               onClick={() => setVisible((v) => v + PAGE)}

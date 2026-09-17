@@ -112,9 +112,3 @@ export function addedKey(stone: Stone): number {
   }
   return 0;
 }
-
-/** Carat bounds of a set, rounded outwards to clean slider stops. */
-export function caratBounds(stones: Stone[]): [number, number] {
-  const values = stones.map((s) => s.carat);
-  return [Math.floor(Math.min(...values) * 10) / 10, Math.ceil(Math.max(...values) * 10) / 10];
-}

@@ -1,25 +1,22 @@
 import type { Metadata } from "next";
 import { JewelryCatalog } from "@/components/jewelry-catalog";
-import { JEWELRY_CATEGORIES, METALS, PURITIES, pickList } from "@/lib/jewelry";
+import { toQueryString } from "@/lib/catalog-filter";
 import { JEWELRY_SUMMARIES } from "@/lib/real-jewelry";
-import { SHAPES } from "@/lib/shapes";
 import { INVENTORY_NOTICE } from "@/lib/stones";
 
 export const metadata: Metadata = {
   title: "Diamond jewelry",
   description:
-    "Diamond rings, earrings, bracelets and necklaces in 9K to 18K yellow, white and rose gold. Filter by type, shape, carat, metal and purity, then enquire on any piece.",
+    "Diamond rings, earrings, bracelets and necklaces in 9K to 18K yellow, white and rose gold. Filter by type, shape, carat, centre stone, metal and purity, then enquire on any piece.",
   alternates: { canonical: "/jewelry" },
 };
-
-type List = string | string[];
 
 export default async function JewelryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: List; shape?: List; metal?: List; purity?: List }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { type, shape, metal, purity } = await searchParams;
+  const initialQuery = toQueryString(await searchParams);
 
   return (
     <>
@@ -39,15 +36,7 @@ export default async function JewelryPage({
       <section className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 sm:py-16">
         <JewelryCatalog
           items={JEWELRY_SUMMARIES}
-          initial={{
-            categories: pickList(type, JEWELRY_CATEGORIES),
-            shapes: pickList(
-              shape,
-              SHAPES.map((s) => s.slug),
-            ),
-            metals: pickList(metal, METALS),
-            purities: pickList(purity, PURITIES),
-          }}
+          initialQuery={initialQuery}
           notice={INVENTORY_NOTICE}
         />
       </section>

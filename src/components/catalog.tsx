@@ -1,205 +1,292 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { StoneGrid } from "./stone-grid";
-import { CaratRange, ChipSet, ShapeFilter } from "./catalog-controls";
-import type { ShapeSlug } from "@/lib/shapes";
+import {
+  ActiveFilters,
+  ChipSet,
+  FilterPanel,
+  MoreFilters,
+  NumberRange,
+  QuickPicks,
+  SearchBox,
+  ShapeFilter,
+  SortSelect,
+} from "./catalog-controls";
 import {
   CLARITY_GRADES,
   COLOR_GRADES,
-  CUT_GRADES,
+  FLUORESCENCE,
   LABS,
   addedKey,
-  caratBounds,
-  countByShape,
+  isColorGrade,
   type Origin,
   type Stone,
 } from "@/lib/stones";
 import {
   FANCY,
+  FANCY_HUES,
+  FINISH_GRADES,
+  PRESETS,
+  RANGE_KEYS,
   SORTS,
+  SORT_GROUPS,
+  activeFilterList,
+  emptyFilters,
+  facetCounts,
   filterStones,
+  filtersFromParams,
   filtersToParams,
+  presetActive,
+  stoneBounds,
   type Filters,
+  type ListKey,
+  type Range,
+  type RangeKey,
   type Sort,
 } from "@/lib/catalog-filter";
 
 const PAGE = 12;
 
+const MORE_KEYS: (ListKey | RangeKey)[] = ["polishes", "symmetries", "fluorescences", "table", "depth", "ratio"];
+
 export function Catalog({
   stones,
   origin,
-  initialShape,
-  initialCarat,
-  initialColors,
-  initialCuts,
-  initialClarities,
+  initialQuery = "",
   notice,
 }: {
   stones: Stone[];
   origin: Origin;
-  initialShape?: ShapeSlug;
-  /** Opening carat range; clamped to the catalogue's bounds. Clear resets to the full range. */
-  initialCarat?: { min?: number; max?: number };
-  /** Opening colour selection, e.g. from the colour guide. */
-  initialColors?: Filters["colors"];
-  /** Opening cut selection, e.g. from the cut guide. */
-  initialCuts?: Filters["cuts"];
-  /** Opening clarity selection, e.g. from the clarity guide. */
-  initialClarities?: Filters["clarities"];
+  /**
+   * The page's query string. Every filter and the sort round-trip through it,
+   * so guide links (`?color=D,E`), shared URLs and the PDF sheet all agree.
+   */
+  initialQuery?: string;
   notice?: string;
 }) {
-  const [min, max] = useMemo(() => caratBounds(stones), [stones]);
-  const perShape = useMemo(() => countByShape(stones), [stones]);
+  const bounds = useMemo(() => stoneBounds(stones), [stones]);
+  const empty = useMemo(() => emptyFilters(bounds), [bounds]);
+  const [initial] = useState(() => filtersFromParams(new URLSearchParams(initialQuery), bounds));
 
-  const empty: Filters = useMemo(
-    () => ({
-      shapes: initialShape ? [initialShape] : [],
-      colors: [],
-      clarities: [],
-      cuts: [],
-      labs: [],
-      caratMin: min,
-      caratMax: max,
-    }),
-    [initialShape, min, max],
-  );
-
-  const [filters, setFilters] = useState<Filters>(() => {
-    const clamp = (v: number) => Math.min(max, Math.max(min, v));
-    return {
-      ...empty,
-      colors: initialColors ?? empty.colors,
-      cuts: initialCuts ?? empty.cuts,
-      clarities: initialClarities ?? empty.clarities,
-      caratMin: clamp(initialCarat?.min ?? min),
-      caratMax: clamp(initialCarat?.max ?? max),
-    };
-  });
+  const [filters, setFilters] = useState<Filters>(initial.filters);
+  const [sort, setSortState] = useState<Sort>(initial.sort);
   const [visible, setVisible] = useState(PAGE);
-  const [sort, setSort] = useState<Sort>("recommended");
   const hasDates = useMemo(() => stones.some((s) => addedKey(s) > 0), [stones]);
+  const hasFancy = useMemo(() => stones.some((s) => !isColorGrade(s.color)), [stones]);
 
-  function toggle<K extends "shapes" | "colors" | "clarities" | "cuts" | "labs">(
-    key: K,
-    value: Filters[K][number],
-  ) {
-    setFilters((prev) => {
-      const list = prev[key] as Filters[K][number][];
-      const next = list.includes(value)
-        ? list.filter((v) => v !== value)
-        : [...list, value];
+  const update = useCallback((change: (prev: Filters) => Filters) => {
+    setFilters(change);
+    setVisible(PAGE);
+  }, []);
+
+  function toggle<K extends ListKey>(key: K, value: Filters[K][number]) {
+    update((prev) => {
+      const list = prev[key] as string[];
+      const next = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
       return { ...prev, [key]: next };
     });
+  }
+
+  const setRange = (key: RangeKey) => (value: Range) =>
+    update((prev) => ({ ...prev, ranges: { ...prev.ranges, [key]: value } }));
+
+  const setQuery = useCallback((query: string) => update((prev) => ({ ...prev, query })), [update]);
+
+  function setSort(next: Sort) {
+    setSortState(next);
     setVisible(PAGE);
   }
 
-  function setCarat(which: "caratMin" | "caratMax", raw: string) {
-    const value = Number.parseFloat(raw);
-    setFilters((prev) => ({ ...prev, [which]: Number.isFinite(value) ? value : prev[which] }));
-    setVisible(PAGE);
-  }
+  const results = useMemo(
+    () => filterStones(stones, filters, sort, bounds),
+    [stones, filters, sort, bounds],
+  );
+  const counts = useMemo(() => facetCounts(stones, filters, bounds), [stones, filters, bounds]);
+  const active = activeFilterList(filters, bounds);
+  const moreActive = active.filter((a) => MORE_KEYS.includes(a.key as ListKey)).length;
 
-  const results = useMemo(() => filterStones(stones, filters, sort), [stones, filters, sort]);
-
+  const query = filtersToParams(filters, sort, bounds).toString();
   // The sheet covers every matching stone, not just the page shown so far.
-  const query = filtersToParams(filters, sort, [min, max]).toString();
   const sheetHref = `/spec-sheet/${origin === "natural" ? "natural" : "lab-grown"}${query ? `?${query}` : ""}`;
 
-  const activeCount =
-    filters.shapes.length +
-    filters.colors.length +
-    filters.clarities.length +
-    filters.cuts.length +
-    filters.labs.length +
-    (filters.caratMin !== min || filters.caratMax !== max ? 1 : 0);
+  // Keep the address bar in step so the current view can be bookmarked or shared.
+  useEffect(() => {
+    const url = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(window.history.state, "", url);
+    }
+  }, [query]);
+
+  function remove(id: string) {
+    const item = active.find((a) => a.id === id);
+    if (!item) return;
+    if (item.key === "query") return setQuery("");
+    if ((RANGE_KEYS as readonly string[]).includes(item.key)) {
+      const key = item.key as RangeKey;
+      return setRange(key)(bounds[key]);
+    }
+    toggle(item.key as ListKey, item.value as never);
+  }
+
+  const clearAll = () => update(() => empty);
 
   // Re-keying the grid on the filter signature replays the entry transition,
   // which is what makes a filter change feel like it landed.
   const signature = JSON.stringify([filters, sort]);
 
+  const sortGroups = SORT_GROUPS.map((g) => ({
+    ...g,
+    sorts: g.sorts.filter((key) => key !== "recent" || hasDates),
+  }));
+
   return (
-    <div className="grid gap-10 lg:grid-cols-[280px_1fr] lg:gap-12">
-      <aside className="lg:sticky lg:top-[96px] lg:h-fit">
+    <div className="grid gap-10 lg:grid-cols-[300px_1fr] lg:gap-12">
+      <FilterPanel activeCount={active.length}>
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-2xl">Filter</h2>
-          {activeCount > 0 ? (
+          {active.length > 0 ? (
             <button
               type="button"
-              onClick={() => {
-                setFilters({ ...empty, shapes: [] });
-                setVisible(PAGE);
-              }}
+              onClick={clearAll}
               className="text-[13px] text-ink-muted underline underline-offset-4 transition-colors duration-200 hover:text-ink"
             >
-              Clear {activeCount}
+              Clear {active.length}
             </button>
           ) : null}
         </div>
 
+        <SearchBox
+          value={filters.query}
+          placeholder="Search SKU, shape or colour"
+          onChange={setQuery}
+        />
+
+        <QuickPicks
+          presets={PRESETS.filter((p) => p.values[0] !== FANCY || hasFancy).map((preset) => {
+            const on = presetActive(filters, preset);
+            return {
+              label: preset.label,
+              active: on,
+              onToggle: () =>
+                update((prev) => ({ ...prev, [preset.key]: on ? [] : [...preset.values] })),
+            };
+          })}
+        />
+
         <ShapeFilter
           selected={filters.shapes}
-          counts={perShape}
+          counts={counts.shapes}
           onToggle={(slug) => toggle("shapes", slug)}
         />
 
-        <CaratRange
-          bounds={[min, max]}
-          value={[filters.caratMin, filters.caratMax]}
-          onChange={setCarat}
+        <NumberRange
+          label="Carat"
+          bounds={bounds.carat}
+          value={filters.ranges.carat}
+          onChange={setRange("carat")}
         />
 
         <ChipSet
           label="Colour"
-          options={[...COLOR_GRADES, FANCY]}
+          options={hasFancy ? [...COLOR_GRADES, FANCY] : COLOR_GRADES}
           selected={filters.colors}
+          counts={counts.colors}
           onToggle={(v) => toggle("colors", v)}
         />
+        {hasFancy ? (
+          <ChipSet
+            label="Fancy colour hue"
+            options={FANCY_HUES.filter((h) => counts.hues[h] || filters.hues.includes(h))}
+            selected={filters.hues}
+            counts={counts.hues}
+            onToggle={(v) => toggle("hues", v)}
+          />
+        ) : null}
         <ChipSet
           label="Clarity"
           options={CLARITY_GRADES}
           selected={filters.clarities}
+          counts={counts.clarities}
           onToggle={(v) => toggle("clarities", v)}
         />
         <ChipSet
-          label="Cut and finish"
-          options={CUT_GRADES}
+          label="Cut"
+          hint="Graded on round brilliants only."
+          options={FINISH_GRADES}
           selected={filters.cuts}
+          counts={counts.cuts}
           onToggle={(v) => toggle("cuts", v)}
         />
         <ChipSet
           label="Certificate"
           options={LABS}
           selected={filters.labs}
+          counts={counts.labs}
           onToggle={(v) => toggle("labs", v)}
         />
-      </aside>
+
+        <MoreFilters activeCount={moreActive}>
+          <ChipSet
+            label="Polish"
+            options={FINISH_GRADES}
+            selected={filters.polishes}
+            counts={counts.polishes}
+            onToggle={(v) => toggle("polishes", v)}
+          />
+          <ChipSet
+            label="Symmetry"
+            options={FINISH_GRADES}
+            selected={filters.symmetries}
+            counts={counts.symmetries}
+            onToggle={(v) => toggle("symmetries", v)}
+          />
+          <ChipSet
+            label="Fluorescence"
+            options={FLUORESCENCE}
+            selected={filters.fluorescences}
+            counts={counts.fluorescences}
+            onToggle={(v) => toggle("fluorescences", v)}
+          />
+          <NumberRange
+            label="Table"
+            unit="%"
+            step={0.5}
+            bounds={bounds.table}
+            value={filters.ranges.table}
+            onChange={setRange("table")}
+          />
+          <NumberRange
+            label="Depth"
+            unit="%"
+            step={0.5}
+            bounds={bounds.depth}
+            value={filters.ranges.depth}
+            onChange={setRange("depth")}
+          />
+          <NumberRange
+            label="Length to width"
+            step={0.01}
+            bounds={bounds.ratio}
+            value={filters.ranges.ratio}
+            onChange={setRange("ratio")}
+          />
+          <p className="mt-2 text-[11px] text-ink-muted">
+            1.00 is square or round; ovals and pears usually sit between 1.30 and 1.60.
+          </p>
+        </MoreFilters>
+      </FilterPanel>
 
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-hairline pb-5">
           <p aria-live="polite" className="text-[15px]">
-            {results.length} {results.length === 1 ? "stone" : "stones"}
+            {results.length.toLocaleString()} {results.length === 1 ? "stone" : "stones"}
+            {results.length !== stones.length ? (
+              <span className="text-ink-muted"> of {stones.length.toLocaleString()}</span>
+            ) : null}
           </p>
-          <label className="flex items-center gap-2 text-[13px] text-ink-muted">
-            Sort
-            <select
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value as Sort);
-                setVisible(PAGE);
-              }}
-              className="rounded-[12px] border border-hairline bg-porcelain px-3 py-2 text-[15px] text-ink transition-colors duration-200 focus:border-ink"
-            >
-              {(Object.keys(SORTS) as Sort[])
-                .filter((key) => key !== "recent" || hasDates)
-                .map((key) => (
-                  <option key={key} value={key}>
-                    {SORTS[key]}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <SortSelect value={sort} labels={SORTS} groups={sortGroups} onChange={setSort} />
           {results.length > 0 ? (
             <a
               href={sheetHref}
@@ -212,12 +299,14 @@ export function Catalog({
           {notice ? <p className="w-full text-[13px] text-ink-muted">{notice}</p> : null}
         </div>
 
+        <ActiveFilters items={active} onRemove={remove} onClear={clearAll} />
+
         {results.length === 0 ? (
           <div className="mt-10 rounded-[22px] border border-hairline bg-panel p-8">
             <h3 className="font-display text-2xl">Nothing matches that combination</h3>
             <p className="measure mt-2 text-[15px] text-ink-muted-panel">
-              Widen the carat range or clear a grade. We also source to order, so tell us what
-              you are looking for and we will go and find it.
+              Widen a range or remove one of the filters above. We also source to order, so tell
+              us what you are looking for and we will go and find it.
             </p>
           </div>
         ) : (
@@ -236,7 +325,10 @@ export function Catalog({
         )}
 
         {visible < results.length ? (
-          <div className="mt-10 flex justify-center">
+          <div className="mt-10 flex flex-col items-center gap-3">
+            <p className="text-[13px] text-ink-muted">
+              Showing {visible} of {results.length.toLocaleString()}
+            </p>
             <button
               type="button"
               onClick={() => setVisible((v) => v + PAGE)}
@@ -250,3 +342,4 @@ export function Catalog({
     </div>
   );
 }
+

@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
 import { Catalog } from "@/components/catalog";
-import {
-  caratFromSearch,
-  claritiesFromSearch,
-  colorsFromSearch,
-  cutsFromSearch,
-} from "@/lib/catalog-filter";
+import { toQueryString } from "@/lib/catalog-filter";
 import { INVENTORY_NOTICE, LAB_STONES } from "@/lib/stones";
-import { SHAPES, type ShapeSlug } from "@/lib/shapes";
 
 export const metadata: Metadata = {
   title: "Lab-grown loose diamonds",
   description:
-    "Loose lab-grown diamonds in every standard shape, graded and origin-stated. Filter by shape, carat, colour, clarity, cut and certificate, then enquire on any stone.",
+    "Loose lab-grown diamonds in every standard shape, graded and origin-stated. Filter by shape, carat, colour, clarity, cut, polish, symmetry, fluorescence, proportions and certificate, then enquire on any stone.",
 };
 
 const EDUCATION = [
@@ -34,24 +28,12 @@ const EDUCATION = [
   },
 ];
 
-function parseShape(value: string | string[] | undefined): ShapeSlug | undefined {
-  const slug = Array.isArray(value) ? value[0] : value;
-  return SHAPES.find((s) => s.slug === slug)?.slug;
-}
-
 export default async function LabGrownDiamondsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    shape?: string | string[];
-    cmin?: string | string[];
-    cmax?: string | string[];
-    color?: string | string[];
-    cut?: string | string[];
-    clarity?: string | string[];
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shape, cmin, cmax, color, cut, clarity } = await searchParams;
+  const initialQuery = toQueryString(await searchParams);
 
   return (
     <>
@@ -87,11 +69,7 @@ export default async function LabGrownDiamondsPage({
         <Catalog
           stones={LAB_STONES}
           origin="lab"
-          initialShape={parseShape(shape)}
-          initialCarat={caratFromSearch(cmin, cmax)}
-          initialColors={colorsFromSearch(color)}
-          initialCuts={cutsFromSearch(cut)}
-          initialClarities={claritiesFromSearch(clarity)}
+          initialQuery={initialQuery}
           notice={INVENTORY_NOTICE}
         />
       </section>

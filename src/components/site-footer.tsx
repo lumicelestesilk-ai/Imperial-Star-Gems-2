@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PaymentBadge } from "./payment-badge";
 import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { SALES_EMAIL, SALES_PHONE, SALES_PHONE_ALT, generalWhatsappHref } from "@/lib/contact";
@@ -103,6 +104,9 @@ export function SiteFooter() {
                 >
                   WhatsApp
                 </a>
+              </li>
+              <li className="pt-2">
+                <PaymentBadge />
               </li>
             </ul>
           </div>
