@@ -2,338 +2,284 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LOOP_FROM, STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
+import { STAGES, frameCount, frameUrl, stageAt, type SequenceTier } from "@/lib/sequence";
 import { useViewportWidth } from "@/hooks/use-device-type";
 
-/** Frames fetched per batch. Small enough to start drawing early, large enough
- *  to keep the connection busy. */
-const BATCH = 48;
+/** Parallel requests while preloading. */
+const LANES = 8;
 /** At or below this width the thinned `scroll-mobile` tier is decoded. Not a
  *  device-type breakpoint: tablets up to 900px have always had the small tier. */
 const MOBILE_TIER_MAX_WIDTH = 900;
-/** Parallel requests inside a batch. */
-const LANES = 8;
-/** Height of the sticky site header, in pixels. */
-const HEADER_H = 72;
+/**
+ * Length of the cutting sequence, start to finished stone: the full 700-frame
+ * tier at 30 fps. The thinned phone tier plays over the same time, so both
+ * tiers show each stage for as long.
+ */
+const INTRO_MS = (frameCount("scroll") / 30) * 1000;
+/** Playback keeps this much of the sequence loaded ahead of itself before moving on. */
+const BUFFER_MS = 1000;
 /** Playback rate of the finished stone's loop, matching the homepage rotation. */
 const LOOP_FPS = 30;
 
+/**
+ * The homepage hero: one crystal cut from rough to finished stone.
+ *
+ * Plays on its own, on a clock. The cutting sequence runs once, the caption
+ * follows it stage by stage, and on the last frame playback hands over to the
+ * 360° loop of the finished stone, which then turns indefinitely. Nothing here
+ * reads scroll position.
+ *
+ * The clock only runs while the hero is on screen and the tab is visible, and
+ * it holds rather than skips when the network has not delivered the frames
+ * ahead of it. A pause button satisfies WCAG 2.2.2 for motion that starts on
+ * its own; there is still no prefers-reduced-motion branch, because Windows
+ * Server, RDP sessions and many power-saving setups report reduced motion by
+ * default, and visitors on those machines would only ever see a still.
+ */
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const pinRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const imagesRef = useRef<(HTMLImageElement | null)[]>([]);
-  const requestedRef = useRef<Set<number>>(new Set());
-  const drawnIndexRef = useRef(-1);
-  const currentIndexRef = useRef(0);
-  const tierRef = useRef<SequenceTier>("scroll");
-
-  const loopImagesRef = useRef<(HTMLImageElement | null)[]>([]);
+  const introRef = useRef<(HTMLImageElement | null)[]>([]);
+  const loopRef = useRef<(HTMLImageElement | null)[]>([]);
   const loopReadyRef = useRef(false);
-  const loopIndexRef = useRef(0);
+  const tierRef = useRef<SequenceTier>("scroll");
+  const pausedRef = useRef(false);
+
+  /** Where playback is: milliseconds into the intro, then frames into the loop. */
+  const elapsedRef = useRef(0);
   const inLoopRef = useRef(false);
+  const loopIndexRef = useRef(0);
+  const drawnRef = useRef<string>("");
 
   const [ready, setReady] = useState(false);
   const [stageId, setStageId] = useState(STAGES[0].id);
-  const [started, setStarted] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   const viewportWidth = useViewportWidth();
   const hydrated = viewportWidth !== null;
 
   /* ---------------------------------------------------------------- drawing */
 
-  const paint = useCallback((img: HTMLImageElement) => {
+  const paint = useCallback((img: HTMLImageElement, key: string) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !canvas.width) return;
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
-
     const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
     const w = img.width * scale;
     const h = img.height * scale;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    drawnRef.current = key;
   }, []);
 
-  const draw = useCallback((index: number) => {
-    // Fall back to the nearest frame already in memory, so scrubbing ahead of
-    // the preloader holds the last good image instead of flashing empty.
-    const images = imagesRef.current;
-    let img = images[index] ?? null;
-    if (!img) {
-      for (let step = 1; step < images.length; step++) {
-        img = images[index - step] ?? images[index + step] ?? null;
-        if (img) break;
+  /** Draws whatever the playhead points at, falling back to the nearest loaded frame. */
+  const render = useCallback(
+    (force = false) => {
+      if (inLoopRef.current && loopReadyRef.current) {
+        const i = loopIndexRef.current;
+        const img = loopRef.current[i];
+        if (img && (force || drawnRef.current !== `loop-${i}`)) paint(img, `loop-${i}`);
+        return;
       }
-    }
-    if (!img) return;
-
-    paint(img);
-    drawnIndexRef.current = index;
-  }, [paint]);
-
-  /** The loop frame under the playhead, or — until the loop has loaded — the last
-   *  scroll frame, which shows the same face-up stone as the loop's first frame. */
-  const drawLoop = useCallback(() => {
-    if (!loopReadyRef.current) {
-      draw(frameCount(tierRef.current) - 1);
-      return;
-    }
-    const img = loopImagesRef.current[loopIndexRef.current];
-    if (img) paint(img);
-  }, [draw, paint]);
+      const images = introRef.current;
+      const count = images.length;
+      if (!count) return;
+      // Until the loop is in memory the last intro frame stands in for it: it is
+      // the same face-up view as the loop's first frame.
+      const target = inLoopRef.current
+        ? count - 1
+        : Math.min(count - 1, Math.floor((elapsedRef.current / INTRO_MS) * count));
+      for (let step = 0; step < count; step++) {
+        const i = images[target - step] ? target - step : target + step;
+        const img = images[i];
+        if (!img) continue;
+        if (force || drawnRef.current !== `intro-${i}`) paint(img, `intro-${i}`);
+        return;
+      }
+    },
+    [paint],
+  );
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    // Cap the pixel ratio: a 3x buffer costs fill rate for no visible gain on a
-    // sequence that repaints on every scroll tick.
+    // A 3x buffer costs fill rate for no visible gain on a sequence repainting 30 times a second.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const width = Math.round(rect.width * dpr);
     const height = Math.round(rect.height * dpr);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
-      if (inLoopRef.current) drawLoop();
-      else draw(drawnIndexRef.current >= 0 ? drawnIndexRef.current : 0);
+      render(true);
     }
-  }, [draw, drawLoop]);
-
-  /* -------------------------------------------------------------- preloading */
-
-  const loadFrame = useCallback(
-    (index: number) =>
-      new Promise<void>((resolve) => {
-        const count = frameCount(tierRef.current);
-        if (index < 0 || index >= count) return resolve();
-        if (requestedRef.current.has(index)) return resolve();
-        requestedRef.current.add(index);
-
-        const img = new Image();
-        img.decoding = "async";
-        img.onload = () => {
-          imagesRef.current[index] = img;
-          // If the playhead is parked on (or past) this frame, show it now.
-          const count = frameCount(tierRef.current);
-          if (inLoopRef.current) {
-            // The loop owns the canvas; only its stand-in frame needs painting.
-            if (!loopReadyRef.current && index === count - 1) draw(index);
-          } else if (drawnIndexRef.current < 0 || currentIndexRef.current === index) {
-            draw(currentIndexRef.current);
-            setReady(true);
-          }
-          resolve();
-        };
-        img.onerror = () => {
-          // Let a later pass retry rather than leaving a permanent hole.
-          requestedRef.current.delete(index);
-          resolve();
-        };
-        img.src = frameUrl(tierRef.current, index);
-      }),
-    [draw],
-  );
-
-  /** Fetches the finished stone's loop once, ahead of the visitor reaching it. */
-  const preloadLoop = useCallback(() => {
-    if (loopImagesRef.current.length) return;
-    const count = frameCount("rotate");
-    loopImagesRef.current = new Array(count).fill(null);
-    const queue = Array.from({ length: count }, (_, i) => i);
-    let settled = 0;
-
-    const lane = async () => {
-      while (queue.length) {
-        const i = queue.shift() as number;
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.decoding = "async";
-          const finish = () => {
-            // Play only once every frame has settled; a half-loaded loop reads as stutter.
-            if (++settled === count) loopReadyRef.current = true;
-            resolve();
-          };
-          img.onload = () => {
-            loopImagesRef.current[i] = img;
-            finish();
-          };
-          img.onerror = finish;
-          img.src = frameUrl("rotate", i);
-        });
-      }
-    };
-    for (let l = 0; l < LANES; l++) void lane();
-  }, []);
+  }, [render]);
 
   /* ------------------------------------------------------------ the machine */
 
-  /*
-    No prefers-reduced-motion branch here, deliberately. The sequence only moves
-    while the visitor is scrolling and stops the instant they stop, so it is
-    direct manipulation rather than autoplaying motion. It used to swap in a
-    static poster under reduced motion — and since Windows Server, RDP sessions
-    and many power-saving setups report reduced motion by default, visitors on
-    those machines saw one still image that never changed. The finished stone's
-    loop at the end runs regardless for the same reason, like the 3D viewer.
-  */
   useEffect(() => {
     // Wait for the real width so a phone never starts loading the desktop tier.
     if (viewportWidth === null) return;
     const section = sectionRef.current;
-    const pin = pinRef.current;
-    if (!section || !pin) return;
+    if (!section) return;
 
-    // Narrow screens decode the thinned, smaller tier. Sampled once per mount,
-    // as before — `hydrated` is the dependency, not the width, so resizing
-    // afterwards doesn't swap tiers mid-scroll.
-    tierRef.current = viewportWidth <= MOBILE_TIER_MAX_WIDTH ? "scroll-mobile" : "scroll";
-    const count = frameCount(tierRef.current);
-    imagesRef.current = new Array(count).fill(null);
-    // Start from a clean slate on every mount. React's development double-mount
-    // would otherwise leave indices marked "requested" by a torn-down run.
-    requestedRef.current = new Set();
-    drawnIndexRef.current = -1;
-    currentIndexRef.current = 0;
+    // Sampled once per mount: resizing afterwards doesn't swap tiers mid-play.
+    const tier: SequenceTier = viewportWidth <= MOBILE_TIER_MAX_WIDTH ? "scroll-mobile" : "scroll";
+    tierRef.current = tier;
+    const count = frameCount(tier);
+    const loopCount = frameCount("rotate");
+    // A clean slate on every mount; React's development double-mount would
+    // otherwise inherit a torn-down run's state.
+    introRef.current = new Array(count).fill(null);
+    loopRef.current = new Array(loopCount).fill(null);
+    loopReadyRef.current = false;
+    elapsedRef.current = 0;
+    inLoopRef.current = false;
+    loopIndexRef.current = 0;
+    drawnRef.current = "";
 
     let cancelled = false;
-    let cleanupScroll: (() => void) | undefined;
-    inLoopRef.current = false;
+    /** Frames 0..contiguous-1 are all in memory. */
+    let contiguous = 0;
 
-    // The finished stone turns on its own once the sequence reaches it. The loop
-    // stops whenever the hero is off screen or the tab is hidden.
-    let raf = 0;
-    let last = 0;
-    let carry = 0;
-    let onScreen = false;
-    const tick = (now: number) => {
-      raf = 0;
-      if (!inLoopRef.current || !onScreen || document.visibilityState !== "visible") return;
-      if (loopReadyRef.current && last) {
-        carry += now - last;
-        const step = 1000 / LOOP_FPS;
-        if (carry >= step) {
-          // Cap catch-up so a dropped burst of frames does not lurch the stone.
-          const advance = Math.min(Math.floor(carry / step), 3);
-          carry -= advance * step;
-          loopIndexRef.current = (loopIndexRef.current + advance) % loopImagesRef.current.length;
-          drawLoop();
-        }
-      }
-      last = now;
-      raf = requestAnimationFrame(tick);
-    };
-    const startLoop = () => {
-      if (raf) return;
-      last = 0;
-      carry = 0;
-      raf = requestAnimationFrame(tick);
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") startLoop();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    const visibility = new IntersectionObserver((entries) => {
-      onScreen = entries[entries.length - 1].isIntersecting;
-      if (onScreen) startLoop();
-    });
-    visibility.observe(section);
+    /* -- loading */
 
-    const preload = async () => {
-      // First frame before anything else, so the canvas fills immediately.
-      await loadFrame(0);
-      if (cancelled) return;
-      setReady(true);
-
-      for (let start = 0; start < count && !cancelled; start += BATCH) {
-        const end = Math.min(start + BATCH, count);
-        const queue: number[] = [];
-        for (let i = start; i < end; i++) queue.push(i);
-
-        // Always keep the frame under the playhead ahead of the queue, in case
-        // the visitor scrubs faster than the batches arrive.
-        await Promise.all(
-          Array.from({ length: LANES }, async () => {
-            while (queue.length && !cancelled) {
-              await loadFrame(currentIndexRef.current);
-              const next = queue.shift();
-              if (next === undefined) return;
-              await loadFrame(next);
-            }
-          }),
-        );
-      }
-    };
-
-    // Only start fetching once the hero is actually approaching the viewport.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          observer.disconnect();
-          void preload();
-        }
-      },
-      { rootMargin: "300px 0px" },
-    );
-    observer.observe(section);
-
-    const setupScroll = async () => {
-      const [{ gsap }, { ScrollTrigger }] = await Promise.all([
-        import("gsap"),
-        import("gsap/ScrollTrigger"),
-      ]);
-      if (cancelled) return;
-      gsap.registerPlugin(ScrollTrigger);
-
-      const trigger = ScrollTrigger.create({
-        trigger: section,
-        // Pin just below the sticky header, so the canvas is never behind it.
-        start: `top ${HEADER_H}px`,
-        // Six further viewport heights of scrubbing after the hero locks.
-        // A function keeps it correct when the window is resized.
-        end: () => `+=${window.innerHeight * 6}`,
-        pin,
-        // Let ScrollTrigger add the spacer. The alternative — sizing the section
-        // by hand and disabling pinSpacing — makes the hero snap out of view at
-        // the end instead of releasing into the next section.
-        pinSpacing: true,
-        anticipatePin: 1,
-        invalidateOnRefresh: true,
-        scrub: true,
-        onUpdate: (self) => {
-          const index = Math.round(self.progress * (count - 1));
-          currentIndexRef.current = index;
-          if (self.progress > 0.6) preloadLoop();
-
-          const inLoop = self.progress >= LOOP_FROM;
-          if (inLoop !== inLoopRef.current) {
-            inLoopRef.current = inLoop;
-            if (inLoop) {
-              // Arriving from above, the stone is face up — the loop's first angle.
-              loopIndexRef.current = 0;
-              drawLoop();
-              startLoop();
-            } else {
-              drawnIndexRef.current = -1;
-            }
-          }
-          // Redraw only when the frame actually changes — scroll fires far more
-          // often than the sequence advances.
-          if (!inLoop && index !== drawnIndexRef.current) draw(index);
-
-          const stage = stageAt(self.progress);
-          setStageId((prev) => (prev === stage.id ? prev : stage.id));
-          setStarted(self.progress > 0.015);
-        },
+    const fetchFrame = (url: string) =>
+      new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
       });
 
-      cleanupScroll = () => {
-        trigger.kill();
-      };
+    const loadIntro = async () => {
+      const first = await fetchFrame(frameUrl(tier, 0));
+      if (cancelled) return;
+      if (first) {
+        introRef.current[0] = first;
+        render(true);
+        setReady(true);
+      }
+      // In order, so playback can start as soon as its buffer is filled.
+      const queue = Array.from({ length: count - 1 }, (_, k) => k + 1);
+      await Promise.all(
+        Array.from({ length: LANES }, async () => {
+          while (queue.length && !cancelled) {
+            const i = queue.shift() as number;
+            // One retry, since a gap holds playback until loading finishes.
+            const img = (await fetchFrame(frameUrl(tier, i))) ?? (await fetchFrame(frameUrl(tier, i)));
+            if (cancelled) return;
+            introRef.current[i] = img;
+            while (contiguous < count && introRef.current[contiguous]) contiguous++;
+          }
+        }),
+      );
+      if (cancelled) return;
+      // Frames that failed twice borrow their predecessor, so playback can pass them.
+      introRef.current = introRef.current.map((img, i, all) => img ?? all[i - 1] ?? all.find(Boolean) ?? null);
+      contiguous = introRef.current.every(Boolean) ? count : contiguous;
+      // The loop comes second, well before the intro reaches it on any
+      // reasonable connection.
+      if (!cancelled) void loadLoop();
     };
 
-    void setupScroll();
+    const loadLoop = async () => {
+      const queue = Array.from({ length: loopCount }, (_, i) => i);
+      await Promise.all(
+        Array.from({ length: LANES }, async () => {
+          while (queue.length && !cancelled) {
+            const i = queue.shift() as number;
+            loopRef.current[i] = await fetchFrame(frameUrl("rotate", i));
+          }
+        }),
+      );
+      if (cancelled) return;
+      // A missing frame would stutter the spin; borrow the previous one.
+      loopRef.current = loopRef.current.map((img, i, all) => img ?? all[i - 1] ?? all[0]);
+      // Play only once every frame has settled; a half-loaded loop reads as stutter.
+      loopReadyRef.current = loopRef.current.every(Boolean);
+    };
+
+    /* -- the clock */
+
+    let raf = 0;
+    let last = 0;
+    let loopCarry = 0;
+    let onScreen = false;
+    let lastStage = "";
+
+    const tick = (now: number) => {
+      raf = 0;
+      if (!onScreen || document.visibilityState !== "visible") return;
+      const dt = last ? Math.min(now - last, 100) : 0;
+      last = now;
+
+      if (!pausedRef.current) {
+        if (!inLoopRef.current) {
+          // Hold, rather than skip ahead, until the next second of frames is in.
+          const next = elapsedRef.current + dt;
+          const needed = Math.min(count, Math.ceil(((next + BUFFER_MS) / INTRO_MS) * count));
+          if (contiguous >= needed) elapsedRef.current = next;
+          if (elapsedRef.current >= INTRO_MS) {
+            elapsedRef.current = INTRO_MS;
+            inLoopRef.current = true;
+            loopIndexRef.current = 0;
+            loopCarry = 0;
+          }
+          const stage = stageAt(Math.min(elapsedRef.current / INTRO_MS, 1));
+          if (stage.id !== lastStage) {
+            lastStage = stage.id;
+            setStageId(stage.id);
+          }
+        } else if (loopReadyRef.current) {
+          loopCarry += dt;
+          const step = 1000 / LOOP_FPS;
+          if (loopCarry >= step) {
+            // Cap catch-up so a dropped burst of frames does not lurch the stone.
+            const advance = Math.min(Math.floor(loopCarry / step), 3);
+            loopCarry -= advance * step;
+            loopIndexRef.current = (loopIndexRef.current + advance) % loopCount;
+          }
+        }
+        render();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    const start = () => {
+      if (raf || !onScreen || document.visibilityState !== "visible") return;
+      last = 0;
+      raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    const onVisibility = () => (document.visibilityState === "visible" ? start() : stop());
+    document.addEventListener("visibilitychange", onVisibility);
+
+    let loading = false;
+    const io = new IntersectionObserver(
+      (entries) => {
+        onScreen = entries[entries.length - 1].isIntersecting;
+        if (onScreen && !loading) {
+          loading = true;
+          void loadIntro();
+        }
+        if (onScreen) start();
+        else stop();
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(section);
+
+    // The pause button restarts the clock without waiting for another observer callback.
+    const resume = () => start();
+    section.addEventListener("hero:resume", resume);
 
     resizeCanvas();
     const ro = new ResizeObserver(resizeCanvas);
@@ -341,31 +287,28 @@ export function HeroSequence() {
 
     return () => {
       cancelled = true;
-      observer.disconnect();
-      visibility.disconnect();
-      document.removeEventListener("visibilitychange", onVisibility);
-      if (raf) cancelAnimationFrame(raf);
+      stop();
+      io.disconnect();
       ro.disconnect();
-      cleanupScroll?.();
+      document.removeEventListener("visibilitychange", onVisibility);
+      section.removeEventListener("hero:resume", resume);
     };
-  }, [hydrated, draw, drawLoop, loadFrame, preloadLoop, resizeCanvas]);
+    // `hydrated`, not the width: the tier is chosen once, on the first real measurement.
+  }, [hydrated, render, resizeCanvas]);
+
+  const togglePaused = () => {
+    pausedRef.current = !pausedRef.current;
+    setPaused(pausedRef.current);
+    if (!pausedRef.current) sectionRef.current?.dispatchEvent(new Event("hero:resume"));
+  };
 
   /* ----------------------------------------------------------------- render */
 
   const activeStage = STAGES.find((s) => s.id === stageId) ?? STAGES[0];
-  const stageNumber = STAGES.indexOf(activeStage) + 1;
 
   return (
     <section ref={sectionRef} className="relative border-b border-hairline" aria-labelledby="hero-heading">
-      {/*
-        Height comes from the ScrollTrigger pin spacer rather than a fixed
-        `700svh` here: seven viewport heights in total, one showing the hero and
-        six scrubbing the 700-frame sequence.
-      */}
-      <div
-        ref={pinRef}
-        className="flex h-[calc(100svh-72px)] items-center overflow-hidden"
-      >
+      <div className="flex min-h-[calc(100svh-72px)] items-center py-10">
         <div className="mx-auto grid w-full max-w-[1440px] items-center gap-6 px-5 sm:px-8 lg:grid-cols-[5fr_7fr] lg:gap-10">
           <div className="order-2 lg:order-1">
             <HeroTitle />
@@ -381,7 +324,7 @@ export function HeroSequence() {
                 ref={canvasRef}
                 className="h-full w-full"
                 role="img"
-                aria-label={`Diamond cutting sequence, stage ${stageNumber} of ${STAGES.length}, ${activeStage.title}: ${activeStage.stillAlt}`}
+                aria-label={`Diamond cutting sequence, playing automatically. Now showing ${activeStage.title}: ${activeStage.stillAlt}`}
               />
               {!ready ? (
                 <div
@@ -389,9 +332,16 @@ export function HeroSequence() {
                   className="absolute inset-0 animate-pulse rounded-[36px] bg-gradient-to-br from-panel via-porcelain to-panel"
                 />
               ) : null}
+              <button
+                type="button"
+                onClick={togglePaused}
+                aria-pressed={paused}
+                className="absolute bottom-3 right-3 rounded-full border border-hairline bg-porcelain/85 px-3.5 py-1.5 text-[12px] text-ink-muted backdrop-blur-sm transition-colors duration-200 hover:border-ink hover:text-ink max-md:min-h-11"
+              >
+                {paused ? "Play" : "Pause"}
+                <span className="sr-only"> the diamond animation</span>
+              </button>
             </div>
-
-            <ScrollCue visible={!started} />
           </div>
 
           <div className="order-3 lg:hidden">
@@ -434,6 +384,7 @@ function HeroTitle() {
   );
 }
 
+/** The current stage's title and description. No stage number or counter. */
 function StageCaption({
   stage,
   compact = false,
@@ -441,54 +392,22 @@ function StageCaption({
   stage: (typeof STAGES)[number];
   compact?: boolean;
 }) {
-  const number = STAGES.findIndex((s) => s.id === stage.id) + 1;
-
   return (
-    <div className={compact ? "pt-4" : "border-t border-hairline pt-6"}>
-      <div className="flex items-start gap-4">
-        {/* Stage ticks: a technical read-out of where the stone is in the cut. */}
-        <div aria-hidden className="mt-2 flex shrink-0 flex-col gap-1.5">
-          {STAGES.map((s, i) => (
-            <span
-              key={s.id}
-              className={`block h-px transition-all duration-500 ${
-                i === number - 1 ? "w-6 bg-ink" : "w-3 bg-hairline"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/*
-          Cross-fade: both the title and body are keyed on the stage id, so React
-          swaps the node and the CSS animation replays on every stage change.
-        */}
-        <div key={stage.id} className="animate-[fadeIn_520ms_ease-out]">
-          <p className="text-[13px] text-ink-muted">
-            Stage {number} of {STAGES.length}
-          </p>
-          <h2 className="mt-1 font-display text-[clamp(1.4rem,2.4vw,2rem)]">{stage.title}</h2>
-          <p
-            className={`measure mt-2 text-ink-muted ${compact ? "line-clamp-3 text-[14px]" : "text-[15px]"}`}
-          >
-            {stage.body}
-          </p>
-        </div>
+    // Polite live region on the stable wrapper: the caption changes on its own,
+    // and a region inserted fresh with each stage would often go unannounced.
+    <div className={compact ? "pt-4" : "border-t border-hairline pt-6"} aria-live="polite">
+      {/*
+        Cross-fade: keyed on the stage id, so React swaps the node and the CSS
+        animation replays on every stage change.
+      */}
+      <div key={stage.id} className="animate-[fadeIn_520ms_ease-out]">
+        <h2 className="font-display text-[clamp(1.4rem,2.4vw,2rem)]">{stage.title}</h2>
+        <p
+          className={`measure mt-2 text-ink-muted ${compact ? "line-clamp-3 text-[14px]" : "text-[15px]"}`}
+        >
+          {stage.body}
+        </p>
       </div>
-    </div>
-  );
-}
-
-function ScrollCue({ visible }: { visible: boolean }) {
-  return (
-    <div
-      aria-hidden
-      className={`pointer-events-none absolute inset-x-0 -bottom-2 flex justify-center transition-opacity duration-500 ${
-        visible ? "opacity-100" : "opacity-0"
-      }`}
-    >
-      <span className="rounded-full border border-hairline bg-porcelain px-4 py-1.5 text-[12px] text-ink-muted">
-        Scroll to cut the stone
-      </span>
     </div>
   );
 }

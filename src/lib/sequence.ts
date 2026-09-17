@@ -13,9 +13,12 @@ const BASE = (process.env.NEXT_PUBLIC_SEQUENCE_BASE_URL || "/sequence").replace(
 /**
  * Two independent sequences, each in its own folder:
  *
- *   scroll/         00001.webp – 00700.webp  scroll-scrubbed hero (desktop)
- *   scroll-mobile/  every third scroll frame, smaller, for narrow screens
+ *   scroll/         00001.webp – 00700.webp  the hero cutting sequence (desktop)
+ *   scroll-mobile/  every third frame of it, smaller, for narrow screens
  *   rotate/         00001.webp – 00NNN.webp  looping 360° turn of the stone
+ *
+ * The folder names date from when the hero was scrubbed by scrolling; it now
+ * plays on a timer, but the names stay so deployed CDN paths keep working.
  */
 export type SequenceTier = "scroll" | "scroll-mobile" | "rotate";
 
@@ -35,9 +38,9 @@ export function frameCount(tier: SequenceTier): number {
 }
 
 /**
- * The five stages of the cut, as proportions of the sequence. The scroll
- * position drives both the frame index and which caption is showing, so these
- * are expressed as fractions rather than frame numbers and stay correct if the
+ * The five stages of the cut, as proportions of the sequence. Playback progress
+ * drives both the frame index and which caption is showing, so these are
+ * expressed as fractions rather than frame numbers and stay correct if the
  * frame count changes.
  */
 export type Stage = {
@@ -103,13 +106,6 @@ export const STAGES: Stage[] = [
     stillAlt: "The finished radiant-cut diamond, face up, fully polished.",
   },
 ];
-
-/**
- * From here the hero stops following the scroll and plays the rotate tier as a
- * continuous loop. The last scroll frame and the loop's first frame are the same
- * face-up view, so the handover is seamless.
- */
-export const LOOP_FROM = STAGES[STAGES.length - 1].from;
 
 export function stageAt(progress: number): Stage {
   return STAGES.find((s) => progress >= s.from && progress < s.to) ?? STAGES[STAGES.length - 1];
