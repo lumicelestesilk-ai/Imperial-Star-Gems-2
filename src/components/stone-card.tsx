@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ShapeGlyph } from "./shape-glyph";
+import { ShortlistToggle } from "./shortlist-toggle";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
 import type { Stone } from "@/lib/stones";
 
@@ -17,8 +18,9 @@ export function StoneCard({ stone, onEnquire }: { stone: Stone; onEnquire: (s: S
 
   return (
     <article className="group flex flex-col rounded-[22px] border border-hairline bg-porcelain p-5 transition-colors duration-300 hover:border-metal">
-      <div className="flex items-center justify-center rounded-[16px] bg-panel px-6 py-8">
+      <div className="relative flex items-center justify-center rounded-[16px] bg-panel px-6 py-8">
         <ShapeGlyph geometry={shape.geometry} className="glyph-auto h-24 w-24" />
+        <ShortlistToggle stone={stone} className="absolute right-3 top-3" />
       </div>
 
       <div className="mt-5 flex items-baseline justify-between gap-3">

@@ -426,6 +426,13 @@ export default function ColorGuidePage() {
             <p className="measure mt-4 text-ink-muted">
               What buyers ask most often about colour before choosing a stone.
             </p>
+            <p className="mt-6 text-[14px] text-ink-muted">
+              See how colour trades off against the other Cs in the{" "}
+              <Link href="/diamond-4cs-calculator" className="underline underline-offset-4 hover:text-ink">
+                4Cs calculator
+              </Link>
+              .
+            </p>
           </div>
           <div className="border-t border-hairline">
             {FAQ.map(({ question, answer }) => (

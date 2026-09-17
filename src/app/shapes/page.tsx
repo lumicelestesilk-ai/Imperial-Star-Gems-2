@@ -1,21 +1,37 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShapeGlyph } from "@/components/shape-glyph";
+import { JsonLd } from "@/components/json-ld";
 import { SHAPES } from "@/lib/shapes";
+import { breadcrumbs, collectionPage } from "@/lib/structured-data";
 import { LAB_STONES, NATURAL_STONES, countByShape } from "@/lib/stones";
+
+const DESCRIPTION =
+  "Round, princess, cushion, emerald, oval, pear, marquise, radiant, asscher, heart, trillion and hexagon — what each cut asks of the cutter, and what it gives back.";
 
 export const metadata: Metadata = {
   title: "Diamond shapes",
-  description:
-    "Round, princess, cushion, emerald, oval, pear, marquise, radiant, asscher, heart, trillion and hexagon — what each cut asks of the cutter, and what it gives back.",
+  description: DESCRIPTION,
 };
 
 export default function ShapesPage() {
   const naturalCounts = countByShape(NATURAL_STONES);
   const labCounts = countByShape(LAB_STONES);
 
+  const jsonLd = [
+    collectionPage({
+      name: "Diamond shapes",
+      description: DESCRIPTION,
+      path: "/shapes",
+      total: SHAPES.length,
+      items: SHAPES.map((s) => ({ path: `/shapes/${s.slug}`, name: `${s.name} cut diamonds` })),
+    }),
+    breadcrumbs([{ name: "Diamond shapes", path: "/shapes" }]),
+  ];
+
   return (
     <>
+      <JsonLd data={jsonLd} />
       <section className="border-b border-hairline">
         <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="max-w-[900px] font-display text-[clamp(2.4rem,5.6vw,4.2rem)]">

@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import { Catalog } from "@/components/catalog";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbs, collectionPage } from "@/lib/structured-data";
 import { toQueryString } from "@/lib/catalog-filter";
 import { INVENTORY_NOTICE, LAB_STONES } from "@/lib/stones";
 
+const DESCRIPTION =
+  "Loose lab-grown diamonds in every standard shape, graded and origin-stated. Filter by shape, carat, colour, clarity, cut, polish, symmetry, fluorescence, proportions and certificate, then enquire on any stone.";
+
 export const metadata: Metadata = {
   title: "Lab-grown loose diamonds",
-  description:
-    "Loose lab-grown diamonds in every standard shape, graded and origin-stated. Filter by shape, carat, colour, clarity, cut, polish, symmetry, fluorescence, proportions and certificate, then enquire on any stone.",
+  description: DESCRIPTION,
 };
 
 const EDUCATION = [
@@ -35,8 +39,23 @@ export default async function LabGrownDiamondsPage({
 }) {
   const initialQuery = toQueryString(await searchParams);
 
+  const jsonLd = [
+    collectionPage({
+      name: "Lab-grown loose diamonds",
+      description: DESCRIPTION,
+      path: "/lab-grown-diamonds",
+      total: LAB_STONES.length,
+      items: LAB_STONES.map((s) => ({
+        path: `/stones/${s.sku}`,
+        name: `${s.shapeName} ${s.carat.toFixed(2)} ct, ${s.color}, ${s.clarity}`,
+      })),
+    }),
+    breadcrumbs([{ name: "Lab-grown loose diamonds", path: "/lab-grown-diamonds" }]),
+  ];
+
   return (
     <>
+      <JsonLd data={jsonLd} />
       <section className="border-b border-hairline">
         <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 sm:py-20">
           <h1 className="max-w-[880px] font-display text-[clamp(2.4rem,5.6vw,4.2rem)]">

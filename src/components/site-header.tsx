@@ -7,6 +7,24 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { useDeviceType } from "@/hooks/use-device-type";
+import { useHydrated, useShortlist } from "@/hooks/use-shortlist";
+
+/** "Shortlist (3)" — only once there is something on it, so the nav stays quiet. */
+function ShortlistLink({ className }: { className: string }) {
+  const { stones } = useShortlist();
+  const hydrated = useHydrated();
+  const pathname = usePathname();
+  if (!hydrated || !stones.length) return null;
+  return (
+    <Link
+      href="/shortlist"
+      aria-current={pathname === "/shortlist" ? "page" : undefined}
+      className={className}
+    >
+      Shortlist <span className="tabular-nums">({stones.length})</span>
+    </Link>
+  );
+}
 
 // Eight items plus the Enquire button don't fit beside the wordmark at lg,
 // so the full nav appears from xl and the toggle covers everything below it.
@@ -115,6 +133,7 @@ export function SiteHeader() {
               </Link>
             );
           })}
+          <ShortlistLink className="border-b border-transparent py-1 text-[15px] text-ink transition-colors duration-200 hover:border-hairline" />
           <Link
             href="/contact"
             className="rounded-full bg-ink px-6 py-2.5 text-[15px] text-white transition-opacity duration-200 hover:opacity-85"
@@ -123,32 +142,35 @@ export function SiteHeader() {
           </Link>
         </nav>
 
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="mobile-nav"
-          className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-hairline xl:hidden"
-        >
-          <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
-          <span aria-hidden className="flex flex-col gap-[5px]">
-            <span
-              className={`block h-px w-5 bg-ink transition-transform duration-300 ${
-                open ? "translate-y-[6px] rotate-45" : ""
-              }`}
-            />
-            <span
-              className={`block h-px w-5 bg-ink transition-opacity duration-200 ${
-                open ? "opacity-0" : ""
-              }`}
-            />
-            <span
-              className={`block h-px w-5 bg-ink transition-transform duration-300 ${
-                open ? "-translate-y-[6px] -rotate-45" : ""
-              }`}
-            />
-          </span>
-        </button>
+        <div className="flex items-center gap-4 xl:hidden">
+          <ShortlistLink className="text-[14px] text-ink max-[380px]:hidden" />
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="mobile-nav"
+            className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-hairline"
+          >
+            <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
+            <span aria-hidden className="flex flex-col gap-[5px]">
+              <span
+                className={`block h-px w-5 bg-ink transition-transform duration-300 ${
+                  open ? "translate-y-[6px] rotate-45" : ""
+                }`}
+              />
+              <span
+                className={`block h-px w-5 bg-ink transition-opacity duration-200 ${
+                  open ? "opacity-0" : ""
+                }`}
+              />
+              <span
+                className={`block h-px w-5 bg-ink transition-transform duration-300 ${
+                  open ? "-translate-y-[6px] -rotate-45" : ""
+                }`}
+              />
+            </span>
+          </button>
+        </div>
       </div>
 
       <AnimatePresence initial={false}>

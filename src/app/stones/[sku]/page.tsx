@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StoneModel } from "@/components/stone-model";
 import { StoneEnquireButton } from "@/components/stone-enquire-button";
+import { ShortlistToggle } from "@/components/shortlist-toggle";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbs } from "@/lib/structured-data";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
 import { ALL_STONES, findStone, type Stone } from "@/lib/stones";
 import { SITE_URL as BASE, originWord, stoneSpecs } from "@/lib/stone-specs";
@@ -39,28 +42,46 @@ export default async function StonePage({ params }: Props) {
 
   const specs = stoneSpecs(stone);
 
-  // No Offer: pricing is enquiry-only by design, and an Offer without a price is invalid.
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: titleFor(stone),
-    sku: stone.sku,
-    url: `${BASE}/stones/${stone.sku}`,
-    category: `Loose ${originWord(stone)} diamonds`,
-    material: "Diamond",
-    description: `${stone.shapeName} ${stone.carat.toFixed(2)} carat ${originWord(stone)} diamond, ${stone.color} colour, ${stone.clarity} clarity, graded by ${stone.lab}.`,
-    weight: { "@type": "QuantitativeValue", value: stone.carat, unitCode: "CTM" },
-    additionalProperty: specs
-      .filter(([label]) => label !== "Carat")
-      .map(([name, value]) => ({ "@type": "PropertyValue", name, value })),
-  };
+  // No Offer: pricing is enquiry-only by design; see lib/structured-data.ts.
+  const [length, width, depth] = stone.measurements
+    .split(/\s*x\s*/i)
+    .map((part) => Number.parseFloat(part));
+  const mm = (value: number) =>
+    Number.isFinite(value) ? { "@type": "QuantitativeValue", value, unitCode: "MMT" } : undefined;
+  const catalogueName = stone.origin === "natural" ? "Natural diamonds" : "Lab-grown diamonds";
+
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "@id": `${BASE}/stones/${stone.sku}#product`,
+      name: titleFor(stone),
+      sku: stone.sku,
+      mpn: stone.sku,
+      url: `${BASE}/stones/${stone.sku}`,
+      mainEntityOfPage: `${BASE}/stones/${stone.sku}`,
+      category: `Loose ${originWord(stone)} diamonds`,
+      material: "Diamond",
+      color: stone.color,
+      description: `${stone.shapeName} ${stone.carat.toFixed(2)} carat ${originWord(stone)} diamond, ${stone.color} colour, ${stone.clarity} clarity, graded by ${stone.lab}.`,
+      weight: { "@type": "QuantitativeValue", value: stone.carat, unitCode: "CTM" },
+      depth: mm(depth),
+      width: mm(Math.min(length, width)),
+      height: mm(Math.max(length, width)),
+      additionalProperty: specs
+        .filter(([label]) => label !== "Carat")
+        .map(([name, value]) => ({ "@type": "PropertyValue", name, value })),
+    },
+    breadcrumbs([
+      { name: catalogueName, path: catalogue },
+      { name: `${shape.name} ${catalogueName.toLowerCase()}`, path: `${catalogue}?shape=${stone.shape}` },
+      { name: `${stone.shapeName} ${stone.carat.toFixed(2)} ct, ${stone.sku}`, path: `/stones/${stone.sku}` },
+    ]),
+  ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
-      />
+      <JsonLd data={jsonLd} />
 
       <section className="mx-auto grid max-w-[1440px] gap-10 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div className="mx-auto w-full max-w-[520px] lg:sticky lg:top-[96px] lg:h-fit">
@@ -99,6 +120,13 @@ export default async function StonePage({ params }: Props) {
 
           <div className="mt-10 max-w-[420px]">
             <StoneEnquireButton stone={stone} />
+            <ShortlistToggle stone={stone} variant="labelled" className="mt-3" />
+            <Link
+              href={`/build-a-ring?stone=${encodeURIComponent(stone.sku)}`}
+              className="mt-3 block w-full rounded-full border border-hairline px-7 py-3 text-center text-[15px] transition-colors duration-200 hover:border-ink"
+            >
+              Set this stone in a ring
+            </Link>
             <p className="mt-3 text-[13px] text-ink-muted">
               Price, availability and the full grading report are confirmed on enquiry.
             </p>

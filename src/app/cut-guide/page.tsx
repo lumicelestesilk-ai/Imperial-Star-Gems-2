@@ -411,6 +411,10 @@ export default function CutGuidePage() {
               <Link href="/clarity-guide" className="underline underline-offset-4 hover:text-ink">
                 Clarity guide
               </Link>
+              <span aria-hidden> · </span>
+              <Link href="/diamond-4cs-calculator" className="underline underline-offset-4 hover:text-ink">
+                4Cs calculator
+              </Link>
             </p>
           </div>
           <div className="border-t border-hairline">

@@ -18,7 +18,7 @@ export const SALES_PHONE = "+91 81400 89896";
 export const SALES_PHONE_ALT = "+44 7470 911 557";
 
 /** "Round, 1.02ct, D/VVS1" — the recap that rides along with every enquiry. */
-export function stoneDescriptor(stone: Stone): string {
+export function stoneDescriptor(stone: Pick<Stone, "shapeName" | "carat" | "color" | "clarity">): string {
   return `${stone.shapeName}, ${stone.carat.toFixed(2)}ct, ${stone.color}/${stone.clarity}`;
 }
 
@@ -78,6 +78,119 @@ export function jewelMailtoHref(jewel: JewelSummary): string {
 
 export function jewelWhatsappHref(jewel: JewelSummary): string {
   return whatsappFor(asJewel(jewel));
+}
+
+/**
+ * One enquiry for the whole shortlist, instead of one per stone.
+ * "Hi, I'm interested in these 3 stones:\n1. SKU OM-1026 (Round, 1.02ct, D/VVS1)\n…"
+ */
+type ListedStone = Pick<Stone, "sku" | "shapeName" | "carat" | "color" | "clarity" | "origin">;
+
+export function shortlistSubject(stones: ListedStone[]): string {
+  return `Enquiry - ${stones.length} stones: ${stones.map((s) => s.sku).join(", ")}`;
+}
+
+export function shortlistBody(stones: ListedStone[]): string {
+  const lines = stones.map(
+    (s, i) =>
+      `${i + 1}. SKU ${s.sku} (${stoneDescriptor(s)}, ${s.origin === "natural" ? "natural" : "lab-grown"})`,
+  );
+  return `Hi, I'm interested in these ${stones.length} stones:\n${lines.join("\n")}\n\nPlease share prices, availability and more details.`;
+}
+
+export function shortlistMailtoHref(stones: ListedStone[]): string {
+  const params = new URLSearchParams({
+    subject: shortlistSubject(stones),
+    body: shortlistBody(stones),
+  });
+  return `mailto:${SALES_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
+}
+
+export function shortlistWhatsappHref(stones: ListedStone[]): string {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(shortlistBody(stones))}`;
+}
+
+/**
+ * A ring built from a loose stone and one of our designs. Without a setting it
+ * is a request for a made-to-order design around the stone.
+ */
+export type RingBuild = {
+  stone: ListedStone;
+  setting?: { sku: string; name: string };
+  /** "18K white gold, high polish" */
+  metal?: string;
+  /** "US 6½ (UK M, EU 52)" */
+  size?: string;
+};
+
+export function ringBuildSubject(build: RingBuild): string {
+  return build.setting
+    ? `Ring enquiry - stone ${build.stone.sku} in setting ${build.setting.sku}`
+    : `Ring enquiry - setting for stone ${build.stone.sku}`;
+}
+
+export function ringBuildBody(build: RingBuild): string {
+  const { stone, setting } = build;
+  const lines = [
+    `Stone: SKU ${stone.sku} (${stoneDescriptor(stone)}, ${stone.origin === "natural" ? "natural" : "lab-grown"})`,
+    setting
+      ? `Setting: SKU ${setting.sku} (${setting.name})`
+      : "Setting: please suggest a design for this stone",
+    build.metal ? `Metal: ${build.metal}` : undefined,
+    `Ring size: ${build.size ?? "not sure yet"}`,
+  ].filter(Boolean);
+  return `Hi, I'd like a ring made with:\n${lines.map((l) => `- ${l}`).join("\n")}\n\nPlease confirm the price and lead time.`;
+}
+
+export function ringBuildMailtoHref(build: RingBuild): string {
+  const params = new URLSearchParams({
+    subject: ringBuildSubject(build),
+    body: ringBuildBody(build),
+  });
+  return `mailto:${SALES_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
+}
+
+export function ringBuildWhatsappHref(build: RingBuild): string {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(ringBuildBody(build))}`;
+}
+
+/**
+ * The WhatsApp updates list: new stock across a category, and market notes.
+ * Deliberately worded as a general list, so the desk never mistakes it for an
+ * alert on one particular stone.
+ */
+export const UPDATE_TOPICS = [
+  { id: "natural", label: "New natural stones" },
+  { id: "lab", label: "New lab-grown stones" },
+  { id: "jewelry", label: "New jewelry" },
+  { id: "insights", label: "Market insights" },
+] as const;
+
+export type UpdateTopic = (typeof UPDATE_TOPICS)[number]["id"];
+
+export function updatesBody({
+  topics,
+  name,
+  buyer,
+}: {
+  topics: UpdateTopic[];
+  name?: string;
+  buyer?: "private" | "trade";
+}): string {
+  const lines = [
+    "Hi, please add me to your WhatsApp updates list. This is a general sign-up, not an alert for a specific stone.",
+    name?.trim() ? `Name: ${name.trim().slice(0, 80)}` : undefined,
+    buyer ? `Buying as: ${buyer === "trade" ? "trade / business" : "private buyer"}` : undefined,
+    "Please send me:",
+    ...UPDATE_TOPICS.filter((t) => topics.includes(t.id)).map((t) => `- ${t.label}`),
+    "",
+    "I can ask to be removed at any time.",
+  ];
+  return lines.filter((l) => l !== undefined).join("\n");
+}
+
+export function updatesWhatsappHref(options: Parameters<typeof updatesBody>[0]): string {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(updatesBody(options))}`;
 }
 
 /** General enquiry links, for the header and contact page. */

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FooterUpdates } from "./footer-updates";
 import { PaymentBadge } from "./payment-badge";
 import { ShapeGlyph } from "./shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
@@ -11,17 +12,20 @@ const COLUMNS = [
       { href: "/natural-diamonds", label: "Natural diamonds" },
       { href: "/lab-grown-diamonds", label: "Lab-grown diamonds" },
       { href: "/jewelry", label: "Diamond jewelry" },
+      { href: "/build-a-ring", label: "Build a ring" },
       { href: "/shapes", label: "Shapes" },
       { href: "/carat-guide", label: "Carat guide" },
       { href: "/color-guide", label: "Colour guide" },
       { href: "/cut-guide", label: "Cut guide" },
       { href: "/clarity-guide", label: "Clarity guide" },
+      { href: "/ring-size-guide", label: "Ring size guide" },
     ],
   },
   {
     heading: "Learn",
     links: [
       { href: "/guides", label: "Buying guides" },
+      { href: "/diamond-4cs-calculator", label: "4Cs calculator" },
       { href: "/glossary", label: "Glossary" },
       { href: "/craftsmanship", label: "Craftsmanship" },
       { href: "/insights", label: "Market insights" },
@@ -111,6 +115,8 @@ export function SiteFooter() {
             </ul>
           </div>
         </div>
+
+        <FooterUpdates />
 
         <div className="mt-16 flex flex-col gap-3 border-t border-hairline pt-7 text-[13px] text-ink-muted-panel sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Imperial Star Gems. All rights reserved.</p>

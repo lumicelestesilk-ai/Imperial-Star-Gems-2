@@ -5,6 +5,9 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { DeviceAttribute } from "@/components/device-attribute";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { ShortlistTray } from "@/components/shortlist-tray";
+import { JsonLd } from "@/components/json-ld";
+import { STORE, WEBSITE } from "@/lib/structured-data";
 import "./globals.css";
 
 const displaySerif = Instrument_Serif({
@@ -52,9 +55,11 @@ export default function RootLayout({
         >
           Skip to content
         </a>
+        <JsonLd data={[STORE, WEBSITE]} />
         <SiteHeader />
         <main id="main">{children}</main>
         <SiteFooter />
+        <ShortlistTray />
         <Analytics />
         <SpeedInsights />
       </body>

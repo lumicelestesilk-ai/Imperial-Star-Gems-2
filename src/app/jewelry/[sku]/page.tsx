@@ -13,6 +13,9 @@ import {
   type Jewel,
 } from "@/lib/jewelry";
 import { ALL_JEWELRY, findJewel } from "@/lib/real-jewelry";
+import { isSettingDesign } from "@/lib/ring-builder";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbs } from "@/lib/structured-data";
 import { SITE_URL as BASE } from "@/lib/stone-specs";
 
 type Props = { params: Promise<{ sku: string }> };
@@ -43,27 +46,34 @@ export default async function JewelPage({ params }: Props) {
   const summary = toSummary(jewel);
   const specs = jewelSpecs(summary);
 
-  // No Offer: pricing is enquiry-only by design, and an Offer without a price is invalid.
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: jewel.name,
-    sku: jewel.sku,
-    url: `${BASE}/jewelry/${jewel.sku}`,
-    image: jewel.images.slice(0, 6).map((img) => `${BASE}${img.src}`),
-    category: `Diamond jewelry > ${CATEGORY_PLURAL[jewel.category]}`,
-    material: `${metalsLine(jewel)}, ${originWord(jewel)} diamond`,
-    description: `${jewel.name}. ${jewel.carat.toFixed(2)} carats total weight, ${originWord(jewel)} diamonds.`,
-    weight: { "@type": "QuantitativeValue", value: jewel.carat, unitCode: "CTM" },
-    additionalProperty: specs.map(([name, value]) => ({ "@type": "PropertyValue", name, value })),
-  };
+  // No Offer: pricing is enquiry-only by design; see lib/structured-data.ts.
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "@id": `${BASE}/jewelry/${jewel.sku}#product`,
+      name: jewel.name,
+      sku: jewel.sku,
+      mpn: jewel.sku,
+      url: `${BASE}/jewelry/${jewel.sku}`,
+      mainEntityOfPage: `${BASE}/jewelry/${jewel.sku}`,
+      image: jewel.images.slice(0, 6).map((img) => `${BASE}${img.src}`),
+      category: `Diamond jewelry > ${CATEGORY_PLURAL[jewel.category]}`,
+      material: `${metalsLine(jewel)}, ${originWord(jewel)} diamond`,
+      description: `${jewel.name}. ${jewel.carat.toFixed(2)} carats total weight, ${originWord(jewel)} diamonds.`,
+      weight: { "@type": "QuantitativeValue", value: jewel.carat, unitCode: "CTM" },
+      additionalProperty: specs.map(([name, value]) => ({ "@type": "PropertyValue", name, value })),
+    },
+    breadcrumbs([
+      { name: "Diamond jewelry", path: "/jewelry" },
+      { name: `Diamond ${CATEGORY_PLURAL[jewel.category].toLowerCase()}`, path: `/jewelry?type=${jewel.category}` },
+      { name: jewel.name, path: `/jewelry/${jewel.sku}` },
+    ]),
+  ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
-      />
+      <JsonLd data={jsonLd} />
 
       <section className="mx-auto grid max-w-[1440px] gap-10 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div className="mx-auto w-full max-w-[520px] lg:sticky lg:top-[96px] lg:h-fit">
@@ -101,8 +111,25 @@ export default async function JewelPage({ params }: Props) {
 
           <div className="mt-10 max-w-[420px]">
             <JewelryEnquireButton jewel={summary} />
+            {isSettingDesign(jewel) ? (
+              <Link
+                href={`/build-a-ring?setting=${encodeURIComponent(jewel.sku)}`}
+                className="mt-3 block w-full rounded-full border border-hairline px-7 py-3 text-center text-[15px] transition-colors duration-200 hover:border-ink"
+              >
+                Use this design with your own stone
+              </Link>
+            ) : null}
             <p className="mt-3 text-[13px] text-ink-muted">
               Price, lead time and the diamond certificate are confirmed on enquiry.
+              {jewel.category === "ring" ? (
+                <>
+                  {" "}
+                  <Link href="/ring-size-guide" className="underline underline-offset-4 hover:text-ink">
+                    Find your ring size
+                  </Link>
+                  .
+                </>
+              ) : null}
             </p>
             <a
               href={`/jewelry/${encodeURIComponent(jewel.sku)}/spec-sheet`}
