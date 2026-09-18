@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { RingBuilderReview } from "@/components/ring-builder-review";
+import { SavedBuilds } from "@/components/saved-builds";
 import { ShapeGlyph } from "@/components/shape-glyph";
 import { METALS, PURITIES, metalsLine, type Metal, type Purity } from "@/lib/jewelry";
+import { findBuild } from "@/lib/ring-build-store";
 import {
   SETTING_STYLES,
   STYLE_NAME,
@@ -14,6 +17,7 @@ import {
 } from "@/lib/ring-builder";
 import { SHAPES_WITH_DESIGNS, designsForShape, findSettingDesign } from "@/lib/real-settings";
 import { parseUsSize } from "@/lib/ring-sizes";
+import { BUILD_CODE_RE } from "@/lib/saved-builds";
 import { SHAPES, SHAPE_BY_SLUG, type ShapeSlug } from "@/lib/shapes";
 import { ALL_STONES, findStone, type Stone } from "@/lib/stones";
 
@@ -36,6 +40,15 @@ export default async function BuildARingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = readBuildParams(await searchParams);
+
+  // A saved code on its own is a ring to reopen. Expanding it into the full
+  // builder URL, rather than reading the record on every render, means every
+  // later change edits the link the buyer now holds — and that clearing a
+  // choice clears it, instead of the stored value quietly returning.
+  const codeOnly = params.build && Object.keys(params).length === 1 ? params.build : undefined;
+  const saved = codeOnly && BUILD_CODE_RE.test(codeOnly) ? await findBuild(codeOnly) : undefined;
+  if (saved) redirect(builderHref({ ...saved, build: codeOnly }));
+
   const stone = params.stone ? findStone(params.stone) : undefined;
   const found = params.setting && params.setting !== CUSTOM ? findSettingDesign(params.setting) : undefined;
   // A design made for another shape can't simply take this stone; ask again.
@@ -67,6 +80,14 @@ export default async function BuildARingPage({
       </section>
 
       <section className="mx-auto max-w-[1440px] px-5 py-12 sm:px-8 sm:py-16">
+        {codeOnly ? (
+          <p className="mb-8 rounded-[16px] border border-hairline px-5 py-4 text-[14px] text-ink-muted">
+            We could not find a saved ring under{" "}
+            <span className="tabular-nums tracking-[0.08em] text-ink">{codeOnly.slice(0, 12)}</span>.
+            Check the code, or start again below — nothing is lost, the stones are all still here.
+          </p>
+        ) : null}
+
         {mismatch && found && stone ? (
           <p className="mb-8 rounded-[16px] border border-hairline px-5 py-4 text-[14px] text-ink-muted">
             The {found.name} is designed for {withArticle(SHAPE_BY_SLUG[found.centreShape].name)} centre
@@ -85,8 +106,11 @@ export default async function BuildARingPage({
             initialMetal={(METALS as readonly string[]).includes(params.metal ?? "") ? (params.metal as Metal) : undefined}
             initialPurity={(PURITIES as readonly string[]).includes(params.purity ?? "") ? (params.purity as Purity) : undefined}
             initialSize={parseUsSize(params.size)}
+            initialEngraving={params.engraving}
           />
         ) : null}
+
+        {step === "stone" ? <SavedBuilds /> : null}
       </section>
     </>
   );
@@ -211,7 +235,7 @@ function StoneStep({ params, design }: { params: BuildParams; design?: SettingDe
 
         {/* A plain GET form: filtering works without any JavaScript. */}
         <form action="/build-a-ring" method="get" className="space-y-4">
-          {(["setting", "metal", "purity", "size"] as const).map((key) =>
+          {(["setting", "metal", "purity", "size", "engraving", "build"] as const).map((key) =>
             params[key] ? <input key={key} type="hidden" name={key} value={params[key]} /> : null,
           )}
           <h2 className="font-display text-[26px] leading-none">Choose a stone</h2>

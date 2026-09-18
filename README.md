@@ -257,6 +257,51 @@ natural). Stock lives in `src/lib/real-stones.ts` (lab-grown) and
 
 ---
 
+## Build a ring
+
+`/build-a-ring` runs stone → setting → metal, size and engraving. There are no
+bare mounts in stock: every engagement ring with a centre stone doubles as a
+setting design, and the head is remade to fit the buyer's stone
+([`ring-builder.ts`](src/lib/ring-builder.ts)). Every choice lives in the query
+string, so any state of the builder is a link someone can send.
+
+**The drawing.** Beside the supplier's photograph is a live drawing of the ring
+as configured — [`ring-composite.tsx`](src/components/ring-composite.tsx) over
+the geometry in [`ring-render.ts`](src/lib/ring-render.ts). It is millimetre
+space throughout: the band at the chosen finger size, the centre stone at the
+size on its report, the metal tinted by colour *and* by karat (mixed on actual
+fineness, so 9K reads paler than 18K), and the engraving set along the inside of
+the shank. The head, halo and side stones are indicative of the style and the UI
+says so. The frame is fitted to the ring rather than fixed — stock runs from a
+quarter carat to twenty-two, and one frame holding the largest would leave the
+ordinary ones as specks — so scale is carried by a labelled bar instead.
+
+This is the one thing a photograph cannot do: it shows *this* stone against
+*this* band, where the photograph shows someone else's centre stone. The
+photograph stays the default view; the drawing is one click away.
+
+**Saving and resuming.** `Save & get a link` does two independent things. It
+keeps the configuration in `localStorage`
+([`use-saved-builds.ts`](src/hooks/use-saved-builds.ts), same store pattern as
+the shortlist), and it posts to `POST /api/ring-builds` for an eight-character
+code — Crockford base 32 without I, L, O and U, so nothing is misread over a
+phone call. `/build-a-ring?build=<code>` looks the record up and redirects to the
+fully expanded builder URL, which is what makes later edits behave: the link the
+buyer now holds is the one they change.
+
+The two halves are independent on purpose. With no database configured the route
+answers 503, the local copy is still made, and the builder's own URL already
+carries every choice — so there is always a link to send. Saving is never a dead
+end. There is no account: whoever holds the code holds the ring, which is what
+makes it shareable over WhatsApp and why there is nothing in it worth guessing.
+Rate-limited to 10/minute per IP, with the same caveat as `/api/enquiry` above.
+
+Engraving is capped at 30 characters and stripped to what an engraver can cut
+(letters in any alphabet, digits, and the marks that turn up in names and dates)
+on the way in, in the URL, and again server-side.
+
+---
+
 ## Before this goes live
 
 - **The 333-frame 360° render.** `rotate/` is currently a 138-frame stand-in
@@ -294,6 +339,7 @@ scripts/convert-sequence.mjs  PNG -> WebP tiers + manifest
 public/sequence/              scroll/, scroll-mobile/, rotate/
 src/app/                      Routes: home, two catalogues, shapes, craftsmanship, contact
 src/app/api/enquiry/          Enquiry endpoint
+src/app/api/ring-builds/      Saves a ring configuration, returns its short code
 src/components/               Hero sequence, rotation loop, catalogue, glyphs, drawer, form
 src/lib/                      Shapes, glyph geometry, stones, sequence, contact helpers
 src/data/                     Generated frame manifest

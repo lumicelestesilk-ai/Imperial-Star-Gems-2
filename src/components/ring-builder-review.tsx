@@ -3,22 +3,28 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { RingComposite } from "./ring-composite";
 import { ShapeGlyph } from "./shape-glyph";
+import { useSavedBuilds } from "@/hooks/use-saved-builds";
 import { SIZE_MODELS, faceUpSize, formatFaceUp, parseMeasurements, type FaceUp } from "@/lib/carat-size";
 import { ringBuildMailtoHref, ringBuildWhatsappHref, stoneDescriptor, type RingBuild } from "@/lib/contact";
 import { METALS, METAL_NAME, PURITIES, type Metal, type Purity } from "@/lib/jewelry";
 import {
+  ENGRAVING_MAX,
   FINISH,
   STYLE_NAME,
   builderHref,
+  cleanEngraving,
   imageForMetal,
   type BuildParams,
   type SettingDesign,
 } from "@/lib/ring-builder";
+import { DEFAULT_US } from "@/lib/ring-render";
 import { ORDER_SIZES, formatUs, sizeFromUs } from "@/lib/ring-sizes";
-import type { ShortlistStone } from "@/lib/shortlist";
+import { savedBuildHref, type SavedBuild } from "@/lib/saved-builds";
 import { SHAPE_BY_SLUG, type ShapeSlug } from "@/lib/shapes";
+import type { ShortlistStone } from "@/lib/shortlist";
 
 type Props = {
   stone: ShortlistStone;
@@ -27,9 +33,18 @@ type Props = {
   initialMetal?: Metal;
   initialPurity?: Purity;
   initialSize?: number;
+  initialEngraving?: string;
 };
 
-export function RingBuilderReview({ stone, design, params, initialMetal, initialPurity, initialSize }: Props) {
+export function RingBuilderReview({
+  stone,
+  design,
+  params,
+  initialMetal,
+  initialPurity,
+  initialSize,
+  initialEngraving,
+}: Props) {
   const router = useRouter();
   const metals = design?.metals.length ? design.metals : [...METALS];
   const purities = design?.purities.length ? design.purities : [...PURITIES];
@@ -44,7 +59,12 @@ export function RingBuilderReview({ stone, design, params, initialMetal, initial
         : purities[purities.length - 1],
   );
   const [size, setSize] = useState<number | undefined>(initialSize);
+  const [engraving, setEngraving] = useState(cleanEngraving(initialEngraving));
+  // The photograph is the truth about the design; the drawing is the truth
+  // about the proportions. Without a design there is no photograph to show.
+  const [view, setView] = useState<"photo" | "render">(design ? "photo" : "render");
   const sizeId = useId();
+  const engravingId = useId();
 
   // Keep the URL shareable: a link sent to a partner opens on the same ring.
   const sync = (changes: Partial<BuildParams>) =>
@@ -52,20 +72,65 @@ export function RingBuilderReview({ stone, design, params, initialMetal, initial
 
   const photo = design ? imageForMetal(design, metal) : undefined;
   const stoneSize = parseMeasurements(stone.measurements) ?? faceUpSize(stone.shape, stone.carat);
-  const ring = sizeFromUs(size ?? 7);
+  const ring = sizeFromUs(size ?? DEFAULT_US);
+
+  const configuration: SavedBuild = {
+    stone: stone.sku,
+    ...(design ? { setting: design.sku } : params.setting ? { setting: params.setting } : {}),
+    metal,
+    purity,
+    ...(size === undefined ? {} : { size: String(size) }),
+    ...(engraving ? { engraving } : {}),
+  };
+
+  const save = useSaveRing({
+    build: configuration,
+    label: `${stone.shapeName} ${stone.carat.toFixed(2)} ct · ${
+      design ? STYLE_NAME[design.style] : "Made to order"
+    } · ${purity} ${METAL_NAME[metal].toLowerCase()}`,
+    onSaved: (code) => sync({ build: code }),
+  });
 
   const build: RingBuild = {
     stone,
     setting: design ? { sku: design.sku, name: design.name } : undefined,
     metal: `${purity} ${METAL_NAME[metal].toLowerCase()}, ${FINISH.toLowerCase()}`,
     size: size === undefined ? undefined : `US ${formatUs(size)} (UK ${ring.uk}, EU ${ring.eu})`,
+    engraving: engraving || undefined,
+    reference: save.code,
+    link: save.code ? save.url : undefined,
   };
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
       {/* The combination */}
       <div className="space-y-5 lg:sticky lg:top-[96px] lg:h-fit">
-        {design && photo ? (
+        {design ? (
+          // Toggle buttons rather than ARIA tabs: tabs owe the reader arrow-key
+          // navigation between them, and two buttons do not need it.
+          <div role="group" aria-label="How to view this ring" className="flex flex-wrap gap-2">
+            {(
+              [
+                ["photo", "Photograph"],
+                ["render", "Your ring, to scale"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={view === id}
+                onClick={() => setView(id)}
+                className={`rounded-full border px-4 py-1.5 text-[14px] transition-colors duration-200 ${
+                  view === id ? "border-ink bg-ink text-white" : "border-hairline hover:border-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {view === "photo" && design && photo ? (
           <figure className="relative aspect-square overflow-hidden rounded-[22px] bg-panel">
             <Image
               key={photo.src}
@@ -82,13 +147,24 @@ export function RingBuilderReview({ stone, design, params, initialMetal, initial
             </figcaption>
           </figure>
         ) : (
-          <div className="flex aspect-square items-center justify-center rounded-[22px] bg-panel">
-            <ShapeGlyph geometry={SHAPE_BY_SLUG[stone.shape].geometry} className="glyph-auto h-40 w-40" />
-          </div>
+          <RenderPanel
+            stone={stone}
+            stoneSize={stoneSize}
+            design={design}
+            metal={metal}
+            purity={purity}
+            size={size}
+            engraving={engraving}
+          />
         )}
 
-        {design ? (
-          <ScaleCompare shape={stone.shape} yours={stoneSize} photographed={design.centreSize} estimated={!design.centreSizeMeasured} />
+        {view === "photo" && design ? (
+          <ScaleCompare
+            shape={stone.shape}
+            yours={stoneSize}
+            photographed={design.centreSize}
+            estimated={!design.centreSizeMeasured}
+          />
         ) : null}
       </div>
 
@@ -213,17 +289,59 @@ export function RingBuilderReview({ stone, design, params, initialMetal, initial
           </select>
         </div>
 
+        <div className="border-b border-hairline py-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <label htmlFor={engravingId} className="text-[12px] text-ink-muted">
+              Engraving inside the band (optional)
+            </label>
+            <span aria-hidden className="shrink-0 text-[12px] tabular-nums text-ink-muted">
+              {engraving.length}/{ENGRAVING_MAX}
+            </span>
+          </div>
+          <input
+            id={engravingId}
+            type="text"
+            value={engraving}
+            maxLength={ENGRAVING_MAX}
+            autoComplete="off"
+            placeholder="A date, a name, a few words"
+            aria-describedby={`${engravingId}-help`}
+            onChange={(e) => setEngraving(cleanEngraving(e.target.value))}
+            onBlur={() => sync({ engraving: engraving || undefined })}
+            className="mt-3 w-full rounded-input border border-hairline bg-porcelain px-4 py-2.5 text-[15px]"
+          />
+          <p id={`${engravingId}-help`} className="mt-3 text-[13px] text-ink-muted">
+            Up to {ENGRAVING_MAX} characters, cut inside the shank.{" "}
+            {design ? (
+              <button
+                type="button"
+                onClick={() => setView("render")}
+                className="underline underline-offset-4 transition-colors duration-200 hover:text-ink"
+              >
+                See it on the drawing
+              </button>
+            ) : (
+              <>The drawing shows where it sits.</>
+            )}{" "}
+            An engraved ring cannot be resized afterwards without the engraving being recut.
+          </p>
+        </div>
+
+        <SavePanel save={save} />
+
         <section className="mt-8 rounded-[22px] bg-panel p-6 sm:p-8">
           <h3 className="font-display text-[26px] leading-tight">Enquire about this ring</h3>
           <p className="mt-2 text-[14px] text-ink-muted-panel">
-            Your stone, setting, metal and size go in one message. We reply with the price, lead time
-            and the grading report.
+            Your stone, setting, metal, size and engraving go in one message. We reply with the
+            price, lead time and the grading report.
           </p>
           <ul className="mt-4 space-y-1 text-[13px] text-ink-muted-panel">
             <li>{stone.sku} · {stoneDescriptor(stone)}</li>
             {design ? <li>{design.sku} · {STYLE_NAME[design.style]} setting</li> : null}
             <li>{build.metal}</li>
             <li>Size {build.size ?? "to be confirmed"}</li>
+            {engraving ? <li>Engraved &ldquo;{engraving}&rdquo;</li> : null}
+            {save.code ? <li>Saved ring {save.code}</li> : null}
           </ul>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <a
@@ -275,6 +393,245 @@ function Choice({
       <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
       {children}
     </label>
+  );
+}
+
+/* ------------------------------------------------------- the live drawing */
+
+/**
+ * The ring as the buyer has configured it, drawn to millimetre scale, with the
+ * legend that keeps it honest: what is measured, what is indicative, and what
+ * is standing in until a choice has been made.
+ */
+function RenderPanel({
+  stone,
+  stoneSize,
+  design,
+  metal,
+  purity,
+  size,
+  engraving,
+}: {
+  stone: ShortlistStone;
+  stoneSize: FaceUp;
+  design: SettingDesign | null;
+  metal: Metal;
+  purity: Purity;
+  size?: number;
+  engraving: string;
+}) {
+  const style = design?.style ?? null;
+  const label = [
+    `${stone.shapeName} ${stone.carat.toFixed(2)} carat stone, ${formatFaceUp(stoneSize)}`,
+    design ? `in a ${STYLE_NAME[design.style].toLowerCase()} setting` : "in a setting still to be chosen",
+    `in ${purity} ${METAL_NAME[metal].toLowerCase()}`,
+    `on a US ${formatUs(size ?? DEFAULT_US)} band`,
+    engraving ? `engraved ${engraving}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex h-[440px] items-center justify-center rounded-[22px] bg-panel p-5 sm:h-[520px]">
+        <RingComposite
+          shape={stone.shape}
+          stone={stoneSize}
+          style={style}
+          metal={metal}
+          purity={purity}
+          us={size}
+          engraving={engraving}
+          label={label}
+          className="h-full w-full"
+        />
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-[22px] border border-hairline p-5 text-[14px] sm:grid-cols-3 sm:p-6">
+        <div>
+          <dt className="text-[12px] text-ink-muted">Band</dt>
+          <dd className="mt-0.5 tabular-nums">US {formatUs(size ?? DEFAULT_US)}</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-ink-muted">Stone, face up</dt>
+          <dd className="mt-0.5 tabular-nums">{formatFaceUp(stoneSize)}</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-ink-muted">Metal</dt>
+          <dd className="mt-0.5">
+            {purity} {METAL_NAME[metal].toLowerCase()}
+          </dd>
+        </div>
+      </dl>
+      <p className="text-[13px] text-ink-muted">
+        A drawing to scale, not a photograph. The band is drawn at{" "}
+        {size === undefined
+          ? `US ${formatUs(DEFAULT_US)} until you choose a finger size`
+          : "your finger size"}
+        , and the centre stone at the size on its report, so the two can be judged against each
+        other. The head
+        {style === "halo" || style === "hidden-halo" ? ", halo" : ""}
+        {style === "three-stone" ? ", side stones" : ""} and shoulders are indicative of the style —
+        the head is cut to fit your stone when the ring is made.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ save & resume */
+
+type SaveRing = {
+  code?: string;
+  state: "idle" | "saving" | "done" | "error";
+  error?: string;
+  /** The link that reopens this ring: the short one once saved, else the full URL. */
+  url: string;
+  run: () => void;
+  copy: () => void;
+  copied: boolean;
+};
+
+/**
+ * Saving a ring does two things at once: it keeps the configuration in this
+ * browser, and it asks the server for a short code so the same ring can be
+ * reopened from another device, or quoted back by the desk.
+ *
+ * The two are independent on purpose. If the server has nothing to say — no
+ * database configured, a bad connection — the local copy is still made, and the
+ * builder's own URL already carries every choice, so there is always a link to
+ * send. Nothing about saving is allowed to become a dead end.
+ */
+function useSaveRing({
+  build,
+  label,
+  onSaved,
+}: {
+  build: SavedBuild;
+  label: string;
+  onSaved: (code: string) => void;
+}): SaveRing {
+  const { save } = useSavedBuilds();
+  const [state, setState] = useState<SaveRing["state"]>("idle");
+  const [error, setError] = useState<string>();
+  const [code, setCode] = useState<string>();
+  const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => setOrigin(window.location.origin), []);
+
+  // Any change to the ring makes a saved code stale: it points at the ring as
+  // it was. Drop it rather than hand out a link to something else.
+  const fingerprint = JSON.stringify(build);
+  useEffect(() => {
+    setCode(undefined);
+    setState("idle");
+    setCopied(false);
+  }, [fingerprint]);
+
+  const url = `${origin}${code ? savedBuildHref(code) : builderHref(build)}`;
+
+  const run = async () => {
+    setState("saving");
+    setError(undefined);
+    let allocated: string | undefined;
+    try {
+      const res = await fetch("/api/ring-builds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(build),
+      });
+      const data: { code?: string; error?: string } = await res.json();
+      if (res.ok && data.code) allocated = data.code;
+      else setError(data.error ?? "We could not save that just now. The link below still works.");
+    } catch {
+      setError("We could not reach the server. The link below still works.");
+    }
+    save({ code: allocated, label, build });
+    if (allocated) {
+      setCode(allocated);
+      onSaved(allocated);
+    }
+    setState(allocated ? "done" : "error");
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2400);
+    } catch {
+      // Clipboard blocked: the link is on screen in a field they can select.
+    }
+  };
+
+  return { code, state, error, url, run: () => void run(), copy, copied };
+}
+
+function SavePanel({ save }: { save: SaveRing }) {
+  const linkId = useId();
+
+  return (
+    <section className="border-b border-hairline py-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 className="text-[12px] text-ink-muted">Save this ring</h3>
+        {save.code ? (
+          <p className="text-[13px] text-ink-muted">
+            Code <span className="tabular-nums tracking-[0.08em] text-ink">{save.code}</span>
+          </p>
+        ) : null}
+      </div>
+      <p className="mt-2 text-[14px] text-ink-muted">
+        {save.state === "done"
+          ? "Saved. Send yourself the link, or read the code out to us and we open the same ring."
+          : "Keep these choices to come back to — on this device, and on any other."}
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={save.run}
+          disabled={save.state === "saving"}
+          className="rounded-full border border-ink px-5 py-2.5 text-[14px] transition-colors duration-200 hover:bg-ink hover:text-white disabled:opacity-60"
+        >
+          {save.state === "saving" ? "Saving…" : save.state === "done" ? "Save again" : "Save & get a link"}
+        </button>
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(`The ring I'm looking at: ${save.url}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-full border border-hairline px-5 py-2.5 text-[14px] transition-colors duration-200 hover:border-ink"
+        >
+          Send on WhatsApp
+        </a>
+      </div>
+
+      {save.error ? (
+        <p role="status" className="mt-3 text-[13px] text-ink">
+          {save.error}
+        </p>
+      ) : null}
+
+      <div className="mt-4">
+        <label htmlFor={linkId} className="text-[12px] text-ink-muted">
+          Link to this ring
+        </label>
+        <div className="mt-1.5 flex gap-2">
+          <input
+            id={linkId}
+            readOnly
+            value={save.url}
+            onFocus={(e) => e.currentTarget.select()}
+            className="min-w-0 flex-1 rounded-input border border-hairline bg-porcelain px-3 py-2 text-[13px] text-ink-muted"
+          />
+          <button
+            type="button"
+            onClick={save.copy}
+            className="shrink-0 rounded-full border border-hairline px-4 py-2 text-[13px] transition-colors duration-200 hover:border-ink"
+          >
+            {save.copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 

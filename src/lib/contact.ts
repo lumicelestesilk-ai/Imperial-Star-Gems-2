@@ -121,6 +121,12 @@ export type RingBuild = {
   metal?: string;
   /** "US 6½ (UK M, EU 52)" */
   size?: string;
+  /** What goes inside the band, already stripped of anything unengravable. */
+  engraving?: string;
+  /** The saved build's code, so the desk can open the same ring the buyer sees. */
+  reference?: string;
+  /** Absolute link that reopens the build. */
+  link?: string;
 };
 
 export function ringBuildSubject(build: RingBuild): string {
@@ -138,6 +144,9 @@ export function ringBuildBody(build: RingBuild): string {
       : "Setting: please suggest a design for this stone",
     build.metal ? `Metal: ${build.metal}` : undefined,
     `Ring size: ${build.size ?? "not sure yet"}`,
+    build.engraving ? `Engraving inside the band: "${build.engraving}"` : undefined,
+    build.reference ? `Saved ring: ${build.reference}` : undefined,
+    build.link ? `Opens here: ${build.link}` : undefined,
   ].filter(Boolean);
   return `Hi, I'd like a ring made with:\n${lines.map((l) => `- ${l}`).join("\n")}\n\nPlease confirm the price and lead time.`;
 }

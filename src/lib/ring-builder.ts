@@ -94,6 +94,26 @@ export function imageForMetal(design: SettingDesign, metal: Metal): JewelImage |
   return design.images.find((img) => img.metal === metal) ?? design.images[0];
 }
 
+/* ------------------------------------------------------------ engraving */
+
+/**
+ * Inside-the-band engraving. Thirty characters is what an engraver will fit
+ * comfortably inside a 2 mm shank at a legible size; longer messages get
+ * quoted individually, which the enquiry can ask for in words.
+ */
+export const ENGRAVING_MAX = 30;
+
+/**
+ * What a rotary engraver can cut: letters in any alphabet, digits, spaces and
+ * the handful of marks that turn up in names and dates. Everything else is
+ * dropped rather than rejected, so a paste never loses the whole message.
+ */
+const ENGRAVABLE = /[^\p{L}\p{M}\p{N} .,'’&\-–—!?:;()/+♥♡★]/gu;
+
+export function cleanEngraving(value: string | undefined): string {
+  return (value ?? "").replace(ENGRAVABLE, "").replace(/\s+/g, " ").trimStart().slice(0, ENGRAVING_MAX);
+}
+
 /* ------------------------------------------------------------ URL state */
 
 export type BuildParams = {
@@ -102,6 +122,9 @@ export type BuildParams = {
   metal?: string;
   purity?: string;
   size?: string;
+  engraving?: string;
+  /** A saved build's code, kept in the URL as the reference the desk quotes. */
+  build?: string;
   /** Picker filters. */
   shape?: string;
   origin?: string;
@@ -117,6 +140,8 @@ const KEYS: (keyof BuildParams)[] = [
   "metal",
   "purity",
   "size",
+  "engraving",
+  "build",
   "shape",
   "origin",
   "cmin",
@@ -132,6 +157,7 @@ export function readBuildParams(raw: Record<string, string | string[] | undefine
     const value = Array.isArray(v) ? v[0] : v;
     if (value) out[key] = value;
   }
+  if (out.engraving) out.engraving = cleanEngraving(out.engraving);
   return out;
 }
 
