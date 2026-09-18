@@ -203,12 +203,14 @@ export function updatesWhatsappHref(options: Parameters<typeof updatesBody>[0]):
 }
 
 /** General enquiry links, for the header and contact page. */
-export function generalWhatsappHref(): string {
+export function generalWhatsappHref(message?: string): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    "Hi, I'd like to enquire about loose diamonds.",
+    message ?? "Hi, I'd like to enquire about loose diamonds.",
   )}`;
 }
 
-export function generalMailtoHref(): string {
-  return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("General enquiry").replace(/\+/g, "%20")}`;
+export function generalMailtoHref(message?: string): string {
+  const params = new URLSearchParams({ subject: "General enquiry" });
+  if (message) params.set("body", message);
+  return `mailto:${SALES_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
 }
