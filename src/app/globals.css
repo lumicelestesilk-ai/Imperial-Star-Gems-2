@@ -49,6 +49,66 @@
 }
 
 /*
+  Seasonal themes, keyed to <html data-season>.
+
+  The attribute is set before first paint by the inline script in
+  SeasonalThemeScript, from the visitor's detected hemisphere. A northern
+  visitor in September gets autumn; a southern visitor the same week gets
+  spring. No attribute means no detected season — equatorial visitors, or
+  nobody we could place — and the base palette above applies unchanged.
+
+  Only the two grounds and the glint accent shift. The ink tokens are never
+  touched, because the contrast ratios documented above are measured against
+  them; each ground below was chosen to sit within a few hundredths of the base
+  luminance so those ratios continue to hold:
+
+    theme    ink/porcelain  ink-muted/porcelain  ink/panel  ink-muted-panel/panel
+    base          17.01           4.96             15.19           5.23
+    spring        17.11           4.99             15.48           5.32
+    summer        17.12           5.00             15.41           5.30
+    autumn        17.01           4.96             15.22           5.24
+    winter        16.99           4.96             15.26           5.25
+
+  Re-measure before changing any value here. The tint is meant to be a whisper:
+  if a visitor notices the colour rather than the season, it has gone too far.
+*/
+:root[data-season="spring"] {
+  --color-porcelain: #fafbfa;
+  --color-panel: #eef0ec;
+  --color-facet: #e4f0e4;
+}
+
+:root[data-season="summer"] {
+  --color-porcelain: #fbfbf8;
+  --color-panel: #f0efe9;
+  --color-facet: #d8ecf5;
+}
+
+:root[data-season="autumn"] {
+  --color-porcelain: #fbfaf7;
+  --color-panel: #f1ede7;
+  --color-facet: #f2e6d4;
+}
+
+:root[data-season="winter"] {
+  --color-porcelain: #f9fafb;
+  --color-panel: #eceef0;
+  --color-facet: #e3ebf2;
+}
+
+/*
+  The theme is normally correct before the first paint, but a visitor whose
+  country only the network fallback could resolve gets corrected a moment after
+  hydration. Easing the two grounds turns that from a pop into a settle. The
+  reduced-motion block at the foot of this file already neutralises it.
+*/
+body {
+  transition:
+    background-color 480ms var(--ease-quiet),
+    color 480ms var(--ease-quiet);
+}
+
+/*
   Descendant variants for <body data-device>, set by DeviceAttribute once the
   page hydrates — e.g. `device-mobile:hidden`. Tailwind's built-in
   `data-[device=mobile]:` only matches the element carrying the attribute, not

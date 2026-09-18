@@ -16,3 +16,7 @@ assets/sequence/raw-700/
 assets/sequence/raw-360/
 assets/sequence/wire-700/
 assets/sequence/wire-360/
+
+# Flag SVGs are copied out of the flag-icons package by scripts/copy-flags.mjs
+# (run automatically by `npm run build`). Regenerate rather than commit them.
+public/flags/

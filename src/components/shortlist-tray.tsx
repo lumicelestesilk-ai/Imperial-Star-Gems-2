@@ -12,6 +12,23 @@ import { SHORTLIST_LIMIT } from "@/lib/shortlist";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
 
 /**
+ * Whether the tray is currently occupying the bottom-right corner.
+ *
+ * Exported because the geo badge shares that corner and has to sit above the
+ * tray when it is showing. Both read this same hook, so the two can't drift
+ * into overlapping each other if the condition below ever changes.
+ */
+export function useShortlistTrayVisible(): boolean {
+  const { stones } = useShortlist();
+  const hydrated = useHydrated();
+  const pathname = usePathname();
+  return hydrated && stones.length > 0 && pathname !== "/shortlist";
+}
+
+/** Height of the collapsed tab plus its bottom offset, in pixels. */
+export const SHORTLIST_TAB_CLEARANCE = 58;
+
+/**
  * A small tab in the bottom-right corner that opens the shortlist. Hidden when
  * the list is empty, and on the compare page, which already shows everything.
  */
