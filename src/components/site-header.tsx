@@ -103,6 +103,8 @@ export function SiteHeader() {
           href="/"
           className="group flex items-center gap-3"
           aria-label="Imperial Star Gems, home"
+          // Marks the logo for the hidden games; see components/easter-eggs.
+          data-easter-egg="logo"
         >
           {/* The wireframe radiant doubles as the brand's technical mark. */}
           <ShapeGlyph

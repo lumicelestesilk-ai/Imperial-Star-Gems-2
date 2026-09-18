@@ -302,6 +302,48 @@ on the way in, in the URL, and again server-side.
 
 ---
 
+## Hidden games
+
+Thirteen easter-egg games live under
+[`src/components/easter-eggs/`](src/components/easter-eggs/), plus one ambient
+effect (the cursor sparkle trail) that awards nothing. Each is opt-in, closes on
+Escape, and none of them blocks navigation or an enquiry.
+
+**What the initial bundle carries.** Only
+[`easter-egg-provider.tsx`](src/components/easter-eggs/easter-egg-provider.tsx),
+the progress store, and ten passive trigger hooks. Every game, and the gem tray
+itself, is a `next/dynamic` import with `ssr: false` and arrives on its trigger —
+verified against `build-manifest.json`, where no game chunk appears in the root
+or page entries. Something has to listen, so the listener layer is the one part
+that ships on every page; keep it that way when adding games.
+
+**Progress.** `localStorage` under `isg_easter_eggs_v1`, same store pattern as
+the shortlist. The tray sits bottom-left, the corner the shortlist tray and flag
+badge leave free, and only mounts once the first gem is found — a counter
+reading `0 / 13` on a first visit advertises the hunt and spoils it.
+
+**Triggers** are three source attributes and nothing else:
+`data-easter-egg="logo"` on the header logo, `"hero"` on the hero section, and
+`"product"` (with `data-carat`) on jewelry cards that have a centre stone —
+see [`product-marker.ts`](src/components/easter-eggs/product-marker.ts) for why
+only those.
+
+**Seasonal games** are gated on `usePathname`, not props: Snow Globe on midwinter
+routes, Lantern Match on `/seasonal/*/chinese-new-year`. Diya Sequence is built
+and gated on `/seasonal/in/diwali`, **which does not exist yet** — the seasonal
+regions are us, uk, eu and its four languages, jp, kr, cn and anz, with no India.
+Until such a page ships, that gem is unreachable and so is a complete 13/13 set.
+
+**Two things deliberately not done.** There is no discount code: nothing here
+carries a price, so `SHOW_COMPLETION_CODE` in
+[`gem-store.ts`](src/components/easter-eggs/gem-store.ts) is `false` and the
+finish is a line to mention to the desk. And four games are opened by the
+keyboard — the Konami code, a typed word, a repeated key, a slash — which do not
+exist on a touchscreen; a long press on the logo opens the Secret Console as a
+way in, and its `gems` command lists the hints for the rest.
+
+---
+
 ## Before this goes live
 
 - **The 333-frame 360° render.** `rotate/` is currently a 138-frame stand-in
@@ -340,6 +382,7 @@ public/sequence/              scroll/, scroll-mobile/, rotate/
 src/app/                      Routes: home, two catalogues, shapes, craftsmanship, contact
 src/app/api/enquiry/          Enquiry endpoint
 src/app/api/ring-builds/      Saves a ring configuration, returns its short code
+src/components/easter-eggs/   Provider, gem store, trigger hooks, 14 hidden games
 src/components/               Hero sequence, rotation loop, catalogue, glyphs, drawer, form
 src/lib/                      Shapes, glyph geometry, stones, sequence, contact helpers
 src/data/                     Generated frame manifest

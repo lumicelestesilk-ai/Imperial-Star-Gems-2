@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShapeGlyph } from "./shape-glyph";
 import { SHAPE_BY_SLUG } from "@/lib/shapes";
+import { caratAttributes } from "./easter-eggs/product-marker";
 import {
   CATEGORY_NAME,
   METAL_NAME,
@@ -31,6 +32,9 @@ export function JewelryCard({
         tabIndex={-1}
         aria-hidden
         className="relative block aspect-square overflow-hidden rounded-[16px] bg-panel"
+        // The centre stone's weight is the one thing this card doesn't print,
+        // which is what makes it worth guessing. See components/easter-eggs.
+        {...caratAttributes(jewel)}
       >
         {cover ? (
           <>
