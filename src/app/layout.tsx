@@ -9,6 +9,7 @@ import { SeasonalThemeSync } from "@/components/seasonal-theme";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ShortlistTray } from "@/components/shortlist-tray";
+import { EasterEggProvider } from "@/components/easter-eggs/easter-egg-provider";
 import { JsonLd } from "@/components/json-ld";
 import { STORE, WEBSITE } from "@/lib/structured-data";
 import "./globals.css";
@@ -69,6 +70,8 @@ export default function RootLayout({
         <SiteFooter />
         <ShortlistTray />
         <GeoFlagBadge />
+        {/* Listeners only; every game behind it is loaded on its trigger. */}
+        <EasterEggProvider />
         <Analytics />
         <SpeedInsights />
       </body>

@@ -341,7 +341,13 @@ export function HeroSequence() {
   const activeStage = STAGES.find((s) => s.id === stageId) ?? STAGES[0];
 
   return (
-    <section ref={sectionRef} className="relative border-b border-hairline" aria-labelledby="hero-heading">
+    <section
+      ref={sectionRef}
+      className="relative border-b border-hairline"
+      aria-labelledby="hero-heading"
+      // The region the cursor trails sparkles in; see components/easter-eggs.
+      data-easter-egg="hero"
+    >
       <div className="flex min-h-[calc(100svh-72px)] items-center py-10">
         <div className="mx-auto grid w-full max-w-[1440px] items-center gap-6 px-5 sm:px-8 lg:grid-cols-[5fr_7fr] lg:gap-10">
           <div className="order-2 lg:order-1">
