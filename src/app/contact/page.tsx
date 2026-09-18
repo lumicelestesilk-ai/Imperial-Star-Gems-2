@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { EnquiryForm } from "@/components/enquiry-form";
 import { ShapeGlyph } from "@/components/shape-glyph";
 import { GLYPHS } from "@/lib/glyphs";
 import { SHAPES } from "@/lib/shapes";
 import { CUT_GRADES } from "@/lib/stones";
 import { FULL_SCALE } from "@/lib/clarity-grades";
-import { SALES_EMAIL, SALES_PHONE, SALES_PHONE_ALT, generalWhatsappHref } from "@/lib/contact";
+import { SALES_EMAIL, generalMailtoHref, generalWhatsappHref } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Enquire about loose natural or lab-grown diamonds. Reach Imperial Star Gems by email, phone or WhatsApp, or send a specification and we will source to it.",
+    "Enquire about loose natural or lab-grown diamonds. Reach Imperial Star Gems by WhatsApp or email, or send a specification and we will source to it.",
 };
 
 type SpecParams = {
@@ -95,8 +94,21 @@ export default async function ContactPage({
             <p className="measure mt-3 text-[15px] text-ink-muted">
               We answer every enquiry ourselves, usually within one working day.
             </p>
-            <div className="mt-8 max-w-[640px]">
-              <EnquiryForm defaultMessage={specification?.message} />
+            <div className="mt-8 grid max-w-[640px] gap-3 sm:grid-cols-2">
+              <a
+                href={generalWhatsappHref(specification?.message)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full bg-ink px-7 py-3 text-center text-[15px] text-white transition-opacity duration-200 hover:opacity-85"
+              >
+                WhatsApp
+              </a>
+              <a
+                href={generalMailtoHref(specification?.message)}
+                className="rounded-full border border-ink px-7 py-3 text-center text-[15px] transition-colors duration-200 hover:bg-ink hover:text-white"
+              >
+                Email
+              </a>
             </div>
           </div>
 
@@ -121,25 +133,6 @@ export default async function ContactPage({
                       className="text-[15px] underline-offset-4 hover:underline"
                     >
                       {SALES_EMAIL}
-                    </a>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[12px] text-ink-muted-panel">Telephone</dt>
-                  <dd className="mt-1">
-                    <a
-                      href={`tel:${SALES_PHONE.replace(/\s/g, "")}`}
-                      className="text-[15px] tabular-nums underline-offset-4 hover:underline"
-                    >
-                      {SALES_PHONE}
-                    </a>
-                  </dd>
-                  <dd className="mt-1">
-                    <a
-                      href={`tel:${SALES_PHONE_ALT.replace(/\s/g, "")}`}
-                      className="text-[15px] tabular-nums underline-offset-4 hover:underline"
-                    >
-                      {SALES_PHONE_ALT}
                     </a>
                   </dd>
                 </div>
